@@ -1,13 +1,17 @@
 # 📚 91AI小说生成器
 
-> 一个基于 Vue 3 + Element Plus 的智能小说创作工具，集成多种 AI 模型，助力作家高效创作
+> 一个基于 Vue 3 + Element Plus 的智能小说创作工具，集成多种 AI 模型，助力作者高效创作
 
 [![Vue](https://img.shields.io/badge/Vue-3.3.8-4FC08D?style=flat-square&logo=vue.js)](https://vuejs.org/)
 [![Element Plus](https://img.shields.io/badge/Element%20Plus-2.4.2-409EFF?style=flat-square&logo=element)](https://element-plus.org/)
 [![Vite](https://img.shields.io/badge/Vite-4.5.0-646CFF?style=flat-square&logo=vite)](https://vitejs.dev/)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 
-![image-20250611102429512](.\image\image-20250611102429512.png)
+<img src=".\image\image-20250611102429512.png" />
+
+## 🎉 演示
+
+- https://xiezuo.91hub.vip
 
 ## ✨ 项目特色
 
