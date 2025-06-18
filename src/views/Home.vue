@@ -22,6 +22,18 @@
           <el-icon class="mr-2"><Document /></el-icon>
           文章摘要
         </el-button>
+        <el-button @click="showChapterManagerDialog = true">
+          <el-icon class="mr-2"><Notebook /></el-icon>
+          章节管理
+        </el-button>
+        <el-button @click="showWritingGoalsDialog = true">
+          <el-icon class="mr-2"><Aim /></el-icon>
+          写作目标
+        </el-button>
+        <el-button @click="showBackupDialog = true">
+          <el-icon class="mr-2"><FolderOpened /></el-icon>
+          备份管理
+        </el-button>
         <el-button @click="showApiConfigDialog = true" :type="isApiConfigured ? 'success' : 'warning'">
           <el-icon class="mr-2"><Key /></el-icon>
           {{ isApiConfigured ? 'API已配置' : 'API配置' }}
@@ -60,6 +72,7 @@
                 v-model="selectedTemplate" 
                 placeholder="请选择写作模板"
                 style="width: 100%"
+                value-key="id"
                 @change="handleTemplateChange"
               >
                 <el-option
@@ -349,6 +362,21 @@
     <el-dialog v-model="showSummaryDialog" title="文章摘要" width="800px">
       <SummaryGenerator />
     </el-dialog>
+
+    <!-- 章节管理对话框 -->
+    <el-dialog v-model="showChapterManagerDialog" title="章节管理" width="1200px" top="5vh">
+      <ChapterManager />
+    </el-dialog>
+
+    <!-- 写作目标对话框 -->
+    <el-dialog v-model="showWritingGoalsDialog" title="写作目标" width="1000px">
+      <WritingGoals />
+    </el-dialog>
+
+    <!-- 备份管理对话框 -->
+    <el-dialog v-model="showBackupDialog" title="备份管理" width="1100px">
+      <BackupManager />
+    </el-dialog>
   </div>
 </template>
 
@@ -356,7 +384,7 @@
 import { ref, computed, onMounted, shallowRef, onBeforeUnmount, watch } from 'vue'
 import { useNovelStore } from '@/stores/novel'
 import { ElMessage } from 'element-plus'
-import { DataAnalysis, Collection, Setting, Key, Document, Loading } from '@element-plus/icons-vue'
+import { DataAnalysis, Collection, Setting, Key, Document, Loading, Notebook, Aim, FolderOpened } from '@element-plus/icons-vue'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import { createEditor, createToolbar } from '@wangeditor/editor'
 import '@wangeditor/editor/dist/css/style.css'
@@ -366,6 +394,9 @@ import CorpusManager from '@/components/CorpusManager.vue'
 import TemplateManager from '@/components/TemplateManager.vue'
 import ApiConfig from '@/components/ApiConfig.vue'
 import SummaryGenerator from '@/components/SummaryGenerator.vue'
+import ChapterManager from '@/components/ChapterManager.vue'
+import WritingGoals from '@/components/WritingGoals.vue'
+import BackupManager from '@/components/BackupManager.vue'
 
 const novelStore = useNovelStore()
 
@@ -398,6 +429,9 @@ const showCorpusDialog = ref(false)
 const showTemplateDialog = ref(false)
 const showApiConfigDialog = ref(false)
 const showSummaryDialog = ref(false)
+const showChapterManagerDialog = ref(false)
+const showWritingGoalsDialog = ref(false)
+const showBackupDialog = ref(false)
 
 // 新增章节和AI对话相关状态
 const chapters = computed(() => novelStore.chapters)

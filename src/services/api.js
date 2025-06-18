@@ -1,4 +1,5 @@
 import apiConfig from '../config/api.json'
+import billingService from './billing.js'
 
 class APIService {
   constructor() {
@@ -78,8 +79,19 @@ class APIService {
 
   // 生成文本内容
   async generateText(prompt, options = {}) {
+    const model = options.model || this.config.selectedModel || this.config.defaultModel || 'gpt-3.5-turbo'
+    
+    // 估算输入token数量
+    const estimatedInputTokens = billingService.estimateTokens(prompt)
+    const estimatedCost = billingService.calculateCost(model, estimatedInputTokens, 500) // 预估500个输出token
+    
+    // 检查余额
+    if (!billingService.checkBalance(estimatedCost)) {
+      throw new Error('账户余额不足，请先充值')
+    }
+
     const requestBody = {
-      model: options.model || this.config.selectedModel || this.config.defaultModel || 'gpt-3.5-turbo',
+      model: model,
       messages: [
         {
           role: 'user',
@@ -91,19 +103,72 @@ class APIService {
       stream: false
     }
 
-    const response = await this.makeRequest('/chat/completions', {
-      body: JSON.stringify(requestBody)
-    })
+    try {
+      const response = await this.makeRequest('/chat/completions', {
+        body: JSON.stringify(requestBody)
+      })
 
-    return response.choices[0]?.message?.content || ''
+      const content = response.choices[0]?.message?.content || ''
+      const usage = response.usage
+      
+      // 记录实际的token使用情况
+      if (usage) {
+        billingService.recordAPICall({
+          type: options.type || 'generation',
+          model: model,
+          content: prompt,
+          response: content,
+          inputTokens: usage.prompt_tokens || 0,
+          outputTokens: usage.completion_tokens || 0,
+          status: 'success'
+        })
+      } else {
+        // 如果API没有返回usage信息，使用估算值
+        const outputTokens = billingService.estimateTokens(content)
+        billingService.recordAPICall({
+          type: options.type || 'generation',
+          model: model,
+          content: prompt,
+          response: content,
+          inputTokens: estimatedInputTokens,
+          outputTokens: outputTokens,
+          status: 'success'
+        })
+      }
+
+      return content
+    } catch (error) {
+      // 记录失败的API调用
+      billingService.recordAPICall({
+        type: options.type || 'generation',
+        model: model,
+        content: prompt,
+        response: '',
+        inputTokens: estimatedInputTokens,
+        outputTokens: 0,
+        status: 'failed'
+      })
+      throw error
+    }
   }
 
   // 流式生成文本内容
   async generateTextStream(prompt, options = {}, onChunk = null) {
     console.log('开始流式生成，prompt:', prompt.substring(0, 100) + '...') // 调试日志
     
+    const model = options.model || this.config.selectedModel || this.config.defaultModel || 'gpt-3.5-turbo'
+    
+    // 估算输入token数量
+    const estimatedInputTokens = billingService.estimateTokens(prompt)
+    const estimatedCost = billingService.calculateCost(model, estimatedInputTokens, 800) // 预估800个输出token
+    
+    // 检查余额
+    if (!billingService.checkBalance(estimatedCost)) {
+      throw new Error('账户余额不足，请先充值')
+    }
+    
     const requestBody = {
-      model: options.model || this.config.selectedModel || this.config.defaultModel || 'gpt-3.5-turbo',
+      model: model,
       messages: [
         {
           role: 'user',
@@ -120,71 +185,103 @@ class APIService {
     const url = this.buildURL('/chat/completions')
     const headers = this.buildHeaders()
     
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody)
-    })
-    
-    console.log('API响应状态:', response.status) // 调试日志
-
-    if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(`API请求失败: ${response.status} - ${errorData.error?.message || '未知错误'}`)
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
     let fullContent = ''
-
+    let hasError = false
+    
     try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody)
+      })
+      
+      console.log('API响应状态:', response.status) // 调试日志
 
-        const chunk = decoder.decode(value, { stream: true })
-        const lines = chunk.split('\n')
+      if (!response.ok) {
+        const errorData = await response.json()
+        hasError = true
+        throw new Error(`API请求失败: ${response.status} - ${errorData.error?.message || '未知错误'}`)
+      }
 
-        for (const line of lines) {
-          const trimmedLine = line.trim()
-          if (trimmedLine.startsWith('data: ')) {
-            const data = trimmedLine.slice(6).trim()
-            
-            if (data === '[DONE]') {
-              console.log('流式生成完成，总内容长度:', fullContent.length) // 调试日志
-              return fullContent
-            }
-            
-            // 跳过空数据
-            if (!data || data === '') {
-              continue
-            }
-            
-            try {
-              const parsed = JSON.parse(data)
-              const content = parsed.choices?.[0]?.delta?.content || ''
-              if (content) {
-                fullContent += content
-                console.log('接收到内容片段:', content) // 调试日志
-                if (onChunk) {
-                  onChunk(content, fullContent)
-                }
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+
+          const chunk = decoder.decode(value, { stream: true })
+          const lines = chunk.split('\n')
+
+          for (const line of lines) {
+            const trimmedLine = line.trim()
+            if (trimmedLine.startsWith('data: ')) {
+              const data = trimmedLine.slice(6).trim()
+              
+              if (data === '[DONE]') {
+                console.log('流式生成完成，总内容长度:', fullContent.length) // 调试日志
+                break
               }
-            } catch (e) {
-              console.log('解析数据失败，原始数据:', JSON.stringify(data), '错误:', e.message) // 调试日志
-              // 继续处理其他数据，不中断流式处理
+              
+              // 跳过空数据
+              if (!data || data === '') {
+                continue
+              }
+              
+              try {
+                const parsed = JSON.parse(data)
+                const content = parsed.choices?.[0]?.delta?.content || ''
+                if (content) {
+                  fullContent += content
+                  console.log('接收到内容片段:', content) // 调试日志
+                  if (onChunk) {
+                    onChunk(content, fullContent)
+                  }
+                }
+              } catch (e) {
+                console.log('解析数据失败，原始数据:', JSON.stringify(data), '错误:', e.message) // 调试日志
+                // 继续处理其他数据，不中断流式处理
+              }
             }
           }
         }
+      } catch (streamError) {
+        console.error('流式读取错误:', streamError)
+        hasError = true
+        throw streamError
+      } finally {
+        reader.releaseLock()
       }
-    } catch (streamError) {
-      console.error('流式读取错误:', streamError)
-      throw streamError
-    } finally {
-      reader.releaseLock()
-    }
 
-    return fullContent
+      // 流式生成成功，记录token使用
+      const outputTokens = billingService.estimateTokens(fullContent)
+      billingService.recordAPICall({
+        type: options.type || 'generation',
+        model: model,
+        content: prompt,
+        response: fullContent,
+        inputTokens: estimatedInputTokens,
+        outputTokens: outputTokens,
+        status: 'success'
+      })
+
+      return fullContent
+    } catch (error) {
+      // 只有在发生错误时才记录失败调用
+      if (hasError) {
+        billingService.recordAPICall({
+          type: options.type || 'generation',
+          model: model,
+          content: prompt,
+          response: fullContent,
+          inputTokens: estimatedInputTokens,
+          outputTokens: billingService.estimateTokens(fullContent),
+          status: 'failed'
+        })
+      }
+      throw error
+    }
   }
 
   // 生成小说大纲
@@ -270,6 +367,51 @@ class APIService {
 请直接输出章节内容：`
 
     return await this.generateText(prompt)
+  }
+
+  // 流式生成章节内容
+  async generateChapterContentStream(chapterTitle, chapterOutline, previousContent = '', template = null, characters = [], worldSettings = [], onChunk = null) {
+    const templateInfo = template ? `\n写作风格：${template.style}\n写作提示：${template.writingTips}` : ''
+    const contextInfo = previousContent ? `\n前文内容参考：${previousContent.slice(-500)}` : ''
+    
+    // 构建人物信息
+    let charactersInfo = ''
+    if (characters.length > 0) {
+      charactersInfo = '\n\n人物设定：'
+      characters.forEach(char => {
+        charactersInfo += `\n- ${char.name}：${char.description}`
+        if (char.traits && char.traits.length > 0) {
+          charactersInfo += ` (特点：${char.traits.join('、')})`
+        }
+      })
+    }
+    
+    // 构建世界观信息
+    let worldInfo = ''
+    if (worldSettings.length > 0) {
+      worldInfo = '\n\n世界观设定：'
+      worldSettings.forEach(setting => {
+        worldInfo += `\n- ${setting.title}：${setting.description}`
+      })
+    }
+    
+    const prompt = `请根据以下信息生成小说章节内容：
+章节标题：${chapterTitle}
+章节大纲：${chapterOutline}${templateInfo}${contextInfo}${charactersInfo}${worldInfo}
+
+要求：
+1. 字数控制在800-1200字
+2. 内容要生动有趣，符合章节大纲
+3. 语言流畅，描写细腻
+4. 如果有前文内容，要保持连贯性
+5. 符合所选模板的风格特点
+6. 充分利用提供的人物设定和世界观设定
+7. 确保人物行为符合其性格特点
+8. 场景描写要符合世界观设定
+
+请直接输出章节内容：`
+
+    return await this.generateTextStream(prompt, {}, onChunk)
   }
 
   // AI对话功能
