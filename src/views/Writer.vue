@@ -66,7 +66,7 @@
                       {{ getChapterStatusText(chapter.status) }}
                     </el-tag>
                   </div>
-                  <p v-if="chapter.description" class="chapter-desc">{{ chapter.description }}</p>
+                  <p v-if="chapter.description" class="chapter-desc">{{ chapter.description?chapter.description.slice(0, 50)+'...':'暂无章节描述'}}</p>
                 </div>
                 <div class="chapter-actions">
                   <el-dropdown @command="(cmd) => handleChapterAction(cmd, chapter)">
@@ -2338,7 +2338,7 @@ ${getOptimizeInstructions(optimizeType.value)}
     console.log(`开始AI${optimizeTypeText}:`, prompt.substring(0, 200) + '...')
     
     const aiResponse = await apiService.generateTextStream(prompt, {
-      maxTokens: Math.max(currentContent.length * 1.2, 1000),
+      maxTokens: Math.max(parseInt(currentContent.length * 1.2), 1000),
       temperature: 0.3, // 优化时使用较低的温度，保持内容稳定
       type: 'polish'
     }, (chunk, fullContent) => {
@@ -5886,6 +5886,11 @@ const initNovel = () => {
   } else {
     ElMessage.error('缺少小说ID参数')
     router.push('/novels')
+  }
+  // 跳转到章节
+  const chapterId = parseInt(route.query.chapterId)
+  if (chapterId) {
+    selectChapter(chapters.value.find(c => c.id === chapterId))
   }
 }
 

@@ -1286,7 +1286,7 @@ const updateNovelInfo = async () => {
 }
 
 const editChapter = (chapter) => {
-  ElMessage.info('跳转到章节编辑页面')
+  router.push(`/writer?novelId=${selectedNovel.value.id}&chapterId=${chapter.id}`)
 }
 
 const generateDescription = async () => {
@@ -1473,7 +1473,7 @@ onMounted(() => {
 
 .novels-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(14em, 1fr));
   gap: 20px;
   margin-bottom: 20px;
 }
@@ -1497,7 +1497,7 @@ onMounted(() => {
 
 .novel-cover {
   position: relative;
-  height: 200px;
+  height:17em;
   overflow: hidden;
   border-radius: 8px 8px 0 0;
 }

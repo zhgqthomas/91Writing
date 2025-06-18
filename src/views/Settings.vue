@@ -549,7 +549,9 @@ onMounted(() => {
 .settings-tabs {
   min-height: 600px;
 }
-
+:deep(.settings-content .el-tabs__header){
+  padding-left: 1em;
+}
 .card-header {
   display: flex;
   justify-content: space-between;
