@@ -66,7 +66,7 @@
                       {{ getChapterStatusText(chapter.status) }}
                     </el-tag>
                   </div>
-                  <p v-if="chapter.description" class="chapter-desc">{{ chapter.description?chapter.description.slice(0, 50)+'...':'暂无章节描述'}}</p>
+                  <p v-if="chapter.description" class="chapter-desc">{{ chapter.description }}</p>
                 </div>
                 <div class="chapter-actions">
                   <el-dropdown @command="(cmd) => handleChapterAction(cmd, chapter)">
@@ -761,8 +761,20 @@
           <el-card shadow="hover" class="config-card-modern">
             <template #header>
               <div class="config-header">
-                <span class="config-title">⚙️ 生成配置</span>
-                <el-tag type="info" size="small">{{ currentChapter?.title || '未选择章节' }}</el-tag>
+                <div class="config-left">
+                  <span class="config-title">⚙️ 生成配置</span>
+                  <el-tag type="info" size="small">{{ currentChapter?.title || '未选择章节' }}</el-tag>
+                </div>
+                <el-button 
+                  type="primary" 
+                  @click="generateChapterContentWithDialog" 
+                  :loading="isGeneratingContent"
+                  :disabled="!selectedPrompt"
+                  size="small"
+                >
+                  <el-icon><MagicStick /></el-icon>
+                  {{ isGeneratingContent ? '生成中' : '生成' }}
+                </el-button>
               </div>
             </template>
             <el-row :gutter="16">
@@ -1631,31 +1643,9 @@ const checkApiConfig = () => {
   return true
 }
 
-// 检查账户余额
-const checkBalance = (estimatedCost = 0.01) => {
-  const balance = billingService.getAccountBalance()
-  if (balance < estimatedCost) {
-    ElMessageBox.confirm(
-      `账户余额不足（当前余额：¥${balance.toFixed(2)}），请先充值。是否前往充值？`,
-      '余额不足',
-      {
-        confirmButtonText: '去充值',
-        cancelButtonText: '稍后充值',
-        type: 'warning'
-      }
-    ).then(() => {
-      router.push('/token-billing')
-    }).catch(() => {
-      // 用户选择稍后充值
-    })
-    return false
-  }
-  return true
-}
-
-// 检查API配置和余额
+// 检查API配置（移除余额检查，用户使用自己的API）
 const checkApiAndBalance = () => {
-  return checkApiConfig() && checkBalance()
+  return checkApiConfig()
 }
 
 // 响应式数据
@@ -2338,7 +2328,7 @@ ${getOptimizeInstructions(optimizeType.value)}
     console.log(`开始AI${optimizeTypeText}:`, prompt.substring(0, 200) + '...')
     
     const aiResponse = await apiService.generateTextStream(prompt, {
-      maxTokens: Math.max(parseInt(currentContent.length * 1.2), 1000),
+      maxTokens: Math.max(currentContent.length * 1.2, 1000),
       temperature: 0.3, // 优化时使用较低的温度，保持内容稳定
       type: 'polish'
     }, (chunk, fullContent) => {
@@ -5887,11 +5877,6 @@ const initNovel = () => {
     ElMessage.error('缺少小说ID参数')
     router.push('/novels')
   }
-  // 跳转到章节
-  const chapterId = parseInt(route.query.chapterId)
-  if (chapterId) {
-    selectChapter(chapters.value.find(c => c.id === chapterId))
-  }
 }
 
 // 生命周期
@@ -6339,6 +6324,12 @@ const generateChapterContentWithDialog = async () => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.config-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .config-title {

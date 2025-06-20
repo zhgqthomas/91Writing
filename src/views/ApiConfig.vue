@@ -428,75 +428,8 @@ import {
 // 响应式数据
 const activeTab = ref('1')
 
-// API配置数据
-const apiConfigs = ref([
-  {
-    id: '1',
-    name: 'OpenAI GPT-4',
-    type: 'openai',
-    description: 'OpenAI GPT-4 模型配置',
-    apiUrl: 'api.openai.com/v1/chat/completions',
-    apiKey: '',
-    model: 'gpt-4',
-    temperature: 0.7,
-    maxTokens: 2000,
-    topP: 1.0,
-    frequencyPenalty: 0.0,
-    presencePenalty: 0.0,
-    timeout: 30,
-    isDefault: true,
-    enabled: true,
-    streamMode: true,
-    retryCount: 3,
-    priority: 1,
-    customHeaders: '',
-    status: 'disconnected'
-  },
-  {
-    id: '2',
-    name: 'Claude 3',
-    type: 'claude',
-    description: 'Anthropic Claude 3 模型配置',
-    apiUrl: 'api.anthropic.com/v1/messages',
-    apiKey: '',
-    model: 'claude-3-sonnet-20240229',
-    temperature: 0.7,
-    maxTokens: 2000,
-    topP: 1.0,
-    frequencyPenalty: 0.0,
-    presencePenalty: 0.0,
-    timeout: 30,
-    isDefault: false,
-    enabled: false,
-    streamMode: true,
-    retryCount: 3,
-    priority: 2,
-    customHeaders: '',
-    status: 'disconnected'
-  },
-  {
-    id: '3',
-    name: '文心一言',
-    type: 'wenxin',
-    description: '百度文心一言模型配置',
-    apiUrl: 'aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions',
-    apiKey: '',
-    model: 'ERNIE-Bot-4',
-    temperature: 0.7,
-    maxTokens: 2000,
-    topP: 1.0,
-    frequencyPenalty: 0.0,
-    presencePenalty: 0.0,
-    timeout: 30,
-    isDefault: false,
-    enabled: false,
-    streamMode: false,
-    retryCount: 3,
-    priority: 3,
-    customHeaders: '',
-    status: 'disconnected'
-  }
-])
+// 预设的API配置示例数据 - 清空为用户自行配置
+const apiConfigs = ref([])
 
 // 预设模板
 const presetTemplates = ref([

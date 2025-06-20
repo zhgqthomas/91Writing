@@ -480,56 +480,8 @@ const loadGoals = () => {
 
 // 初始化默认目标数据
 const initializeDefaultGoals = () => {
-  const defaultGoals = [
-    {
-      id: 1,
-      title: '每日写作目标',
-      type: 'daily',
-      targetValue: 2000,
-      currentValue: 1500,
-      unit: '字',
-      description: '每天至少写作2000字',
-      status: 'active',
-      startDate: new Date('2024-02-01'),
-      endDate: new Date('2024-02-29'),
-      reminder: true,
-      reminderTime: new Date('2024-01-01 09:00:00'),
-      progressHistory: [
-        { id: 1, date: new Date('2024-02-10'), increment: 2100, note: '今天状态很好' },
-        { id: 2, date: new Date('2024-02-09'), increment: 1800, note: '有点卡文' }
-      ]
-    },
-    {
-      id: 2,
-      title: '月度字数挑战',
-      type: 'monthly',
-      targetValue: 50000,
-      currentValue: 28000,
-      unit: '字',
-      description: '本月目标写作5万字',
-      status: 'active',
-      startDate: new Date('2024-02-01'),
-      endDate: new Date('2024-02-29'),
-      reminder: false,
-      progressHistory: []
-    },
-    {
-      id: 3,
-      title: '完成小说第一卷',
-      type: 'custom',
-      targetValue: 20,
-      currentValue: 20,
-      unit: '章',
-      description: '完成《修仙传说》第一卷20章',
-      status: 'completed',
-      startDate: new Date('2024-01-01'),
-      endDate: new Date('2024-01-31'),
-      reminder: false,
-      progressHistory: []
-    }
-  ]
-  
-  goals.value = defaultGoals
+  // 不设置任何默认目标，让用户自己创建
+  goals.value = []
   saveGoalsToStorage()
 }
 

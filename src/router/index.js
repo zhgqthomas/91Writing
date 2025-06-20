@@ -11,6 +11,9 @@ import ChapterManagement from '../views/ChapterManagement.vue'
 import Writer from '../views/Writer.vue'
 import Home from '../views/Home.vue'
 import GenreManagement from '../views/GenreManagement.vue'
+import ToolsLibrary from '../views/ToolsLibrary.vue'
+import ShortStory from '../views/ShortStory.vue'
+import BookAnalysis from '../views/BookAnalysis.vue'
 
 const routes = [
   {
@@ -66,6 +69,21 @@ const routes = [
         path: 'genres',
         name: 'GenreManagement',
         component: GenreManagement
+      },
+      {
+        path: 'tools',
+        name: 'ToolsLibrary',
+        component: ToolsLibrary
+      },
+      {
+        path: 'short-story',
+        name: 'ShortStory',
+        component: ShortStory
+      },
+      {
+        path: 'book-analysis',
+        name: 'BookAnalysis',
+        component: BookAnalysis
       }
     ]
   }

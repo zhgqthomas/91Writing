@@ -1,35 +1,14 @@
 {
   "openai": {
-    "apiKey": "sk-LdbDBBWQJq4BJP9h4Rgd4ZQa2nTMBQTtg4agp0hUO22DyCiz",
-    "baseURL": "https://ai.91hub.vip",
-    "models": [
-      {
-        "id": "gemini-2.5-pro-preview-05-06",
-        "name": "gemini-2.5-pro-preview-05-0",
-        "description": "快速且经济的模型，适合大多数任务"
-      },
-      {
-        "id": "gpt-3.5-turbo",
-        "name": "GPT-3.5 Turbo",
-        "description": "快速且经济的模型，适合大多数任务"
-      },
-      {
-        "id": "gpt-4",
-        "name": "GPT-4",
-        "description": "更强大的模型，适合复杂的创作任务"
-      },
-      {
-        "id": "gpt-4-turbo",
-        "name": "GPT-4 Turbo",
-        "description": "最新的GPT-4模型，性能更优"
-      }
-    ],
-    "defaultModel": "gpt-3.5-turbo",
+    "apiKey": "",
+    "baseURL": "",
+    "models": [],
+    "defaultModel": "",
     "maxTokens": 2000,
     "temperature": 0.7
   },
   "proxy": {
     "enabled": false,
-    "url": "http://localhost:7890"
+    "url": ""
   }
 }

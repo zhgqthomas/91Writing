@@ -48,6 +48,21 @@
           <template #title>Token计费</template>
         </el-menu-item>
         
+        <el-menu-item index="/tools">
+          <el-icon><Tools /></el-icon>
+          <template #title>工具库</template>
+        </el-menu-item>
+        
+        <el-menu-item index="/short-story">
+          <el-icon><EditPen /></el-icon>
+          <template #title>短篇小说</template>
+        </el-menu-item>
+        
+        <el-menu-item index="/book-analysis">
+          <el-icon><DataAnalysis /></el-icon>
+          <template #title>拆书工具</template>
+        </el-menu-item>
+        
         <el-menu-item index="/settings">
           <el-icon><Setting /></el-icon>
           <template #title>系统设置</template>
@@ -104,7 +119,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useNovelStore } from '@/stores/novel'
 import { 
   House, Document, ChatLineSquare, Collection, Notebook, Aim, 
-  CreditCard, Setting, Key, 
+  CreditCard, Setting, Key, Tools, EditPen, DataAnalysis,
   Expand, Fold 
 } from '@element-plus/icons-vue'
 import ApiConfig from '@/components/ApiConfig.vue'
@@ -129,6 +144,9 @@ const pageTitle = computed(() => {
     '/chapters': '章节管理',
     '/goals': '写作目标',
     '/billing': 'Token计费',
+    '/tools': '工具库',
+    '/short-story': '短篇小说',
+    '/book-analysis': '拆书工具',
     '/settings': '系统设置'
   }
   return titleMap[route.path] || '首页'

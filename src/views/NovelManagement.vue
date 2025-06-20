@@ -592,70 +592,9 @@ const loadNovels = () => {
         }))
       }))
     } else {
-      // 如果没有保存的数据，使用示例数据
-      novels.value = [
-        {
-          id: 1,
-          title: '修仙传说',
-          description: '一个普通少年的修仙之路，从凡人到仙帝的传奇故事。',
-          genre: 'fantasy',
-          status: 'writing',
-          cover: '',
-          chapters: 45,
-          wordCount: 180000,
-          totalWords: 180000,
-          avgWordsPerChapter: 4000,
-          writingDays: 30,
-          createdAt: new Date('2024-01-15'),
-          updatedAt: new Date('2024-02-10'),
-          tags: ['修仙', '热血', '升级'],
-          chapterList: [
-            { id: 1, title: '初入修仙界', content: '', wordCount: 4200, createdAt: new Date('2024-02-10'), updatedAt: new Date('2024-02-10') },
-            { id: 2, title: '第一次突破', content: '', wordCount: 3800, createdAt: new Date('2024-02-09'), updatedAt: new Date('2024-02-09') }
-          ],
-          writingRecords: [
-            { id: 1, date: new Date('2024-02-10'), wordsWritten: 2000, timeSpent: 120, note: '今天写得很顺利' },
-            { id: 2, date: new Date('2024-02-09'), wordsWritten: 1500, timeSpent: 90, note: '' }
-          ]
-        },
-        {
-          id: 2,
-          title: '都市风云',
-          description: '商业精英在都市中的奋斗史，金融战争与爱情的交织。',
-          genre: 'urban',
-          status: 'completed',
-          cover: '',
-          chapters: 120,
-          wordCount: 500000,
-          totalWords: 500000,
-          avgWordsPerChapter: 4167,
-          writingDays: 90,
-          createdAt: new Date('2023-10-01'),
-          updatedAt: new Date('2024-01-20'),
-          tags: ['都市', '商战', '爱情'],
-          chapterList: [],
-          writingRecords: []
-        },
-        {
-          id: 3,
-          title: '星际征途',
-          description: '人类踏出地球，征服星辰大海的科幻史诗。',
-          genre: 'scifi',
-          status: 'paused',
-          cover: '',
-          chapters: 28,
-          wordCount: 95000,
-          totalWords: 95000,
-          avgWordsPerChapter: 3393,
-          writingDays: 20,
-          createdAt: new Date('2024-01-01'),
-          updatedAt: new Date('2024-01-25'),
-          tags: ['科幻', '星际', '冒险'],
-          chapterList: [],
-          writingRecords: []
-        }
-      ]
-      // 保存示例数据到localStorage
+      // 如果没有保存的数据，初始化为空
+      novels.value = []
+      // 保存空数据到localStorage
       saveNovels()
     }
   } catch (error) {
@@ -1286,7 +1225,7 @@ const updateNovelInfo = async () => {
 }
 
 const editChapter = (chapter) => {
-  router.push(`/writer?novelId=${selectedNovel.value.id}&chapterId=${chapter.id}`)
+  ElMessage.info('跳转到章节编辑页面')
 }
 
 const generateDescription = async () => {
@@ -1473,7 +1412,7 @@ onMounted(() => {
 
 .novels-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14em, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
   gap: 20px;
   margin-bottom: 20px;
 }
@@ -1497,7 +1436,7 @@ onMounted(() => {
 
 .novel-cover {
   position: relative;
-  height:17em;
+  height: 200px;
   overflow: hidden;
   border-radius: 8px 8px 0 0;
 }
@@ -1587,8 +1526,6 @@ onMounted(() => {
   border-color: #409eff;
   background-color: #f8f9fa;
 }
-
-
 
 .cover-uploader-placeholder {
   display: flex;

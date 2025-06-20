@@ -81,14 +81,8 @@ class APIService {
   async generateText(prompt, options = {}) {
     const model = options.model || this.config.selectedModel || this.config.defaultModel || 'gpt-3.5-turbo'
     
-    // 估算输入token数量
+    // 估算输入token数量（用于记录，无需检查余额）
     const estimatedInputTokens = billingService.estimateTokens(prompt)
-    const estimatedCost = billingService.calculateCost(model, estimatedInputTokens, 500) // 预估500个输出token
-    
-    // 检查余额
-    if (!billingService.checkBalance(estimatedCost)) {
-      throw new Error('账户余额不足，请先充值')
-    }
 
     const requestBody = {
       model: model,
@@ -158,14 +152,8 @@ class APIService {
     
     const model = options.model || this.config.selectedModel || this.config.defaultModel || 'gpt-3.5-turbo'
     
-    // 估算输入token数量
+    // 估算输入token数量（用于记录，无需检查余额）
     const estimatedInputTokens = billingService.estimateTokens(prompt)
-    const estimatedCost = billingService.calculateCost(model, estimatedInputTokens, 800) // 预估800个输出token
-    
-    // 检查余额
-    if (!billingService.checkBalance(estimatedCost)) {
-      throw new Error('账户余额不足，请先充值')
-    }
     
     const requestBody = {
       model: model,

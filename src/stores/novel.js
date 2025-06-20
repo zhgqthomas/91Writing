@@ -14,85 +14,7 @@ export const useNovelStore = defineStore('novel', () => {
   const aiChatHistory = ref([])
   const currentChatInput = ref('')
   const isAiChatting = ref(false)
-  const templates = ref([
-    { 
-      id: 1, 
-      name: '玄幻小说', 
-      description: '包含修仙、异世界等元素',
-      style: '宏大叙事，想象丰富',
-      audience: '喜欢奇幻冒险的读者',
-      keywords: ['修仙', '异世界', '法宝', '灵气', '境界', '天劫', '仙人', '妖兽'],
-      plotElements: ['主角获得奇遇', '修炼突破', '门派争斗', '寻宝历险', '渡劫成仙'],
-      characterTypes: ['天才少年', '神秘师父', '美丽师姐', '邪恶反派', '忠诚伙伴'],
-      writingTips: '注重世界观构建，描写修炼体系要清晰，战斗场面要震撼'
-    },
-    { 
-      id: 2, 
-      name: '都市言情', 
-      description: '现代都市背景的爱情故事',
-      style: '细腻温馨，贴近生活',
-      audience: '都市白领，年轻女性',
-      keywords: ['爱情', '职场', '都市', '豪门', '契约', '误会', '重逢', '甜宠'],
-      plotElements: ['初遇心动', '误会分离', '事业发展', '感情纠葛', '幸福结局'],
-      characterTypes: ['霸道总裁', '独立女性', '温柔暖男', '闺蜜好友', '恶毒女配'],
-      writingTips: '对话要自然，情感描写要细腻，现代都市背景要真实'
-    },
-    { 
-      id: 3, 
-      name: '悬疑推理', 
-      description: '充满悬念和推理的故事',
-      style: '紧张刺激，逻辑严密',
-      audience: '喜欢烧脑情节的读者',
-      keywords: ['推理', '悬疑', '案件', '线索', '真相', '密室', '凶手', '动机'],
-      plotElements: ['案件发生', '现场勘查', '证据收集', '推理分析', '真相大白'],
-      characterTypes: ['聪明侦探', '神秘凶手', '关键证人', '警察助手', '受害者'],
-      writingTips: '逻辑要严密，线索要合理，悬念要适度，结局要意外但合理'
-    },
-    { 
-      id: 4, 
-      name: '科幻未来', 
-      description: '未来科技和太空探索',
-      style: '想象超前，科技感强',
-      audience: '科幻爱好者，理工男',
-      keywords: ['科技', '未来', '星际', '机器人', '时空', '外星人', '基因', '虚拟现实'],
-      plotElements: ['科技发现', '太空探索', '外星接触', '时空穿越', '拯救世界'],
-      characterTypes: ['天才科学家', '勇敢探险家', '智能机器人', '外星生物', '未来战士'],
-      writingTips: '科技设定要有依据，未来世界要有逻辑，保持科学性和想象力的平衡'
-    },
-    { 
-      id: 5, 
-      name: '历史穿越', 
-      description: '穿越到古代的故事',
-      style: '古韵悠长，历史厚重',
-      audience: '历史爱好者，古装剧粉',
-      keywords: ['穿越', '古代', '宫廷', '江湖', '权谋', '武功', '才子佳人', '改变历史'],
-      plotElements: ['意外穿越', '适应古代', '卷入历史', '改变命运', '功成身退'],
-      characterTypes: ['现代穿越者', '古代帝王', '江湖侠客', '才子佳人', '奸臣权贵'],
-      writingTips: '历史背景要考证，古代语言要适度，现代知识运用要合理'
-    },
-    {
-      id: 6,
-      name: '校园青春',
-      description: '校园生活和青春成长',
-      style: '青春活力，纯真美好',
-      audience: '学生群体，怀念青春的读者',
-      keywords: ['校园', '青春', '友情', '初恋', '成长', '梦想', '考试', '社团'],
-      plotElements: ['校园生活', '友情建立', '初恋萌芽', '挫折成长', '梦想实现'],
-      characterTypes: ['阳光少年', '文静少女', '学霸同桌', '体育健将', '严厉老师'],
-      writingTips: '要有青春气息，情感要纯真，校园细节要真实，成长主题要积极'
-    },
-    {
-      id: 7,
-      name: '武侠江湖',
-      description: '江湖恩怨和武侠传奇',
-      style: '豪情万丈，侠义精神',
-      audience: '武侠迷，传统文化爱好者',
-      keywords: ['武功', '江湖', '侠客', '门派', '恩怨', '宝剑', '绝学', '正邪'],
-      plotElements: ['初入江湖', '学艺成长', '江湖恩怨', '正邪对决', '侠之大者'],
-      characterTypes: ['少年侠客', '武林高手', '美丽侠女', '邪派魔头', '世外高人'],
-      writingTips: '武功描写要精彩，江湖规矩要明确，侠义精神要突出，文字要有古韵'
-    }
-  ])
+  const templates = ref([])
   const selectedTemplate = ref(null)
   const keywords = ref('')
   const isGenerating = ref(false)
@@ -702,6 +624,40 @@ export const useNovelStore = defineStore('novel', () => {
     worldSettings.value = worldSettings.value.filter(setting => setting.id !== id)
   }
 
+  // 通用内容生成方法
+  const generateContent = async (prompt, onChunk = null) => {
+    if (!isApiConfigured.value) {
+      throw new Error('请先配置API')
+    }
+    
+    try {
+      isGenerating.value = true
+      
+      // 如果提供了onChunk回调，使用流式API
+      if (onChunk) {
+        const result = await apiService.generateTextStream(prompt, {
+          type: 'content_generation'
+        }, (chunk, fullContent) => {
+          onChunk(chunk)
+        })
+        
+        return result
+      } else {
+        // 否则使用普通API
+        const result = await apiService.generateText(prompt, {
+          type: 'content_generation'
+        })
+        
+        return result
+      }
+    } catch (error) {
+      console.error('生成内容失败:', error)
+      throw error
+    } finally {
+      isGenerating.value = false
+    }
+  }
+
   return {
     // 状态
     currentNovel,
@@ -777,6 +733,7 @@ export const useNovelStore = defineStore('novel', () => {
     exportCorpus,
     importCorpus,
     setGeneratingSummary,
-    setArticleSummary
+    setArticleSummary,
+    generateContent
   }
 })

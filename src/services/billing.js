@@ -6,7 +6,7 @@ class BillingService {
   // 初始化本地存储
   initializeStorage() {
     if (!localStorage.getItem('account_balance')) {
-      localStorage.setItem('account_balance', '100.00') // 初始赠送100元
+      localStorage.setItem('account_balance', '0.00') // 初始余额为0
     }
     if (!localStorage.getItem('billing_records')) {
       localStorage.setItem('billing_records', JSON.stringify([]))
