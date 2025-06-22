@@ -29,7 +29,7 @@ export const useNovelStore = defineStore('novel', () => {
     apiKey: '',
     baseURL: 'https://api.openai.com/v1',
     selectedModel: 'gpt-3.5-turbo',
-    maxTokens: 2000,
+    maxTokens: null, // 移除token限制
     temperature: 0.7
   })
   const isApiConfigured = ref(false)
@@ -643,10 +643,10 @@ export const useNovelStore = defineStore('novel', () => {
         
         return result
       } else {
-        // 否则使用普通API
-        const result = await apiService.generateText(prompt, {
+        // 否则使用流式API（不提供回调）
+        const result = await apiService.generateTextStream(prompt, {
           type: 'content_generation'
-        })
+        }, null)
         
         return result
       }

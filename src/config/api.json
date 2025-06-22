@@ -4,7 +4,7 @@
     "baseURL": "",
     "models": [],
     "defaultModel": "",
-    "maxTokens": 2000,
+    "maxTokens": null,
     "temperature": 0.7
   },
   "proxy": {

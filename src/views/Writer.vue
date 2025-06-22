@@ -15,7 +15,6 @@
     <div class="tabs-bar">
       <el-tabs v-model="activeTab" class="main-tabs">
         <el-tab-pane label="📝 编辑" name="editor"></el-tab-pane>
-        <el-tab-pane label="🤖 AI助手" name="ai"></el-tab-pane>
         <el-tab-pane label="👥 人物" name="characters"></el-tab-pane>
         <el-tab-pane label="🌍 世界观" name="worldview"></el-tab-pane>
         <el-tab-pane label="📚 语料库" name="corpus"></el-tab-pane>
@@ -66,7 +65,18 @@
                       {{ getChapterStatusText(chapter.status) }}
                     </el-tag>
                   </div>
-                  <p v-if="chapter.description" class="chapter-desc">{{ chapter.description }}</p>
+                  <el-tooltip 
+                    v-if="chapter.description" 
+                    :content="chapter.description" 
+                    placement="top-start"
+                    :disabled="chapter.description.length <= 50"
+                    effect="light"
+                    :show-after="300"
+                  >
+                    <p class="chapter-desc chapter-desc-truncated">
+                      {{ chapter.description.length > 50 ? chapter.description.substring(0, 50) + '...' : chapter.description }}
+                    </p>
+                  </el-tooltip>
                 </div>
                 <div class="chapter-actions">
                   <el-dropdown @command="(cmd) => handleChapterAction(cmd, chapter)">
@@ -77,7 +87,6 @@
                       <el-dropdown-menu>
                         <el-dropdown-item command="edit">编辑信息</el-dropdown-item>
                         <el-dropdown-item command="generate">AI生成正文</el-dropdown-item>
-                        <el-dropdown-item command="optimize">AI优化</el-dropdown-item>
                         <el-dropdown-item divided command="delete">删除</el-dropdown-item>
                       </el-dropdown-menu>
                     </template>
@@ -95,149 +104,7 @@
           </el-card>
         </div>
 
-        <!-- AI助手面板 -->
-        <div v-show="activeTab === 'ai'" class="panel-content">
-          <el-card shadow="never">
-            <template #header>
-              <span>🤖 AI创作助手</span>
-            </template>
-            
-            <!-- 流式生成内容显示区域 -->
-            <div v-if="isStreaming" class="streaming-content-area">
-              <el-card shadow="never" class="streaming-card">
-                <template #header>
-                  <div class="streaming-header">
-                    <span>🔄 AI正在生成 - {{ getStreamingTypeText() }}</span>
-                    <el-tag type="success" size="small">实时生成中...</el-tag>
-                  </div>
-                </template>
-                <div class="streaming-content">
-                  <div v-if="streamingType === 'content' || streamingType === 'continue' || streamingType === 'optimize'" 
-                       v-html="streamingContent" 
-                       class="streaming-text">
-                  </div>
-                  <pre v-else class="streaming-text-plain">{{ streamingContent }}</pre>
-                </div>
-              </el-card>
-            </div>
 
-            <div class="ai-tools">
-              <el-collapse v-model="activeAITools">
-                <el-collapse-item title="📝 章节生成" name="chapter-gen">
-                  <div class="ai-section">
-                    <el-form :model="aiChapterForm" label-width="80px" size="small">
-                      <el-form-item label="生成数量">
-                        <el-input-number v-model="aiChapterForm.count" :min="1" :max="10" />
-                      </el-form-item>
-                      <el-form-item label="情节要求">
-                        <el-input v-model="aiChapterForm.plotRequirement" type="textarea" :rows="3" placeholder="描述希望的情节发展..." />
-                      </el-form-item>
-                      <el-form-item label="提示词模板">
-                        <el-select v-model="aiChapterForm.template" placeholder="选择模板">
-                          <el-option label="通用章节" value="general" />
-                          <el-option label="战斗场景" value="battle" />
-                          <el-option label="情感戏" value="emotion" />
-                          <el-option label="转折剧情" value="turning" />
-                        </el-select>
-                      </el-form-item>
-                    </el-form>
-                    <div class="ai-button-group">
-                      <el-button type="primary" @click="generateChapters" :loading="isGeneratingChapters" style="flex: 1;">
-                        <el-icon><Star /></el-icon>
-                        生成章节大纲
-                      </el-button>
-                      <el-button @click="openPromptDialog('outline')" style="margin-left: 8px;">
-                        📝 选择提示词
-                      </el-button>
-                      <el-button @click="testChapterParse" size="small" style="margin-left: 8px;" v-if="isDevelopment">
-                        🔧 测试解析
-                      </el-button>
-                    </div>
-                  </div>
-                </el-collapse-item>
-                
-                <el-collapse-item title="✍️ 正文生成" name="content-gen">
-                  <div class="ai-section">
-                    <el-form :model="aiContentForm" label-width="80px" size="small">
-                      <el-form-item label="目标字数">
-                        <el-input-number v-model="aiContentForm.wordCount" :min="500" :max="5000" />
-                      </el-form-item>
-                      <el-form-item label="写作风格">
-                        <el-select v-model="aiContentForm.style">
-                          <el-option label="第一人称" value="first-person" />
-                          <el-option label="第三人称" value="third-person" />
-                          <el-option label="全知视角" value="omniscient" />
-                        </el-select>
-                      </el-form-item>
-                      <el-form-item label="情节重点">
-                        <el-input v-model="aiContentForm.focus" placeholder="本章重点内容..." />
-                      </el-form-item>
-                      <el-form-item label="上下文关联">
-                        <el-checkbox v-model="aiContentForm.useContext">关联前文内容</el-checkbox>
-                        <el-checkbox v-model="aiContentForm.useCharacters">关联人物设定</el-checkbox>
-                        <el-checkbox v-model="aiContentForm.useWorldview">关联世界观</el-checkbox>
-                      </el-form-item>
-                    </el-form>
-                    <div class="ai-button-group">
-                      <el-button type="primary" @click="generateContent" :loading="isGeneratingContent" style="flex: 1;">
-                        <el-icon><Edit /></el-icon>
-                        生成正文内容
-                      </el-button>
-                      <el-button @click="openPromptDialog('content')" style="margin-left: 8px;">
-                        📝 选择提示词
-                      </el-button>
-                    </div>
-                  </div>
-                </el-collapse-item>
-                
-                <el-collapse-item title="🔧 文本优化" name="optimize">
-                  <div class="ai-section">
-                    <el-radio-group v-model="optimizeType" direction="vertical">
-                      <el-radio label="grammar">语法润色</el-radio>
-                      <el-radio label="style">文风优化</el-radio>
-                      <el-radio label="emotion">情感增强</el-radio>
-                      <el-radio label="logic">逻辑梳理</el-radio>
-                    </el-radio-group>
-                    <div class="ai-button-group" style="margin-top: 10px;">
-                      <el-button type="primary" @click="optimizeText" :loading="isOptimizing" style="flex: 1;">
-                        <el-icon><Tools /></el-icon>
-                        快速优化
-                      </el-button>
-                      <el-button @click="openOptimizePromptDialog" style="margin-left: 8px;">
-                        📝 提示词优化
-                      </el-button>
-                    </div>
-                  </div>
-                </el-collapse-item>
-                
-                <el-collapse-item title="🚀 智能续写" name="continue">
-                  <div class="ai-section">
-                    <p class="section-desc">基于现有内容智能续写，保持风格一致</p>
-                    <div class="ai-button-group">
-                      <el-button type="success" @click="continueWriting" :loading="isGeneratingContent" style="flex: 1;">
-                        <el-icon><Right /></el-icon>
-                        智能续写
-                      </el-button>
-                      <el-button @click="openPromptDialog('continue')" style="margin-left: 8px;">
-                        📝 选择提示词
-                      </el-button>
-                    </div>
-                  </div>
-                </el-collapse-item>
-                
-                <el-collapse-item title="✨ 内容增强" name="enhance">
-                  <div class="ai-section">
-                    <p class="section-desc">增强现有内容的表现力和感染力</p>
-                    <el-button type="warning" @click="enhanceContent" :loading="isOptimizing" block>
-                      <el-icon><Star /></el-icon>
-                      内容增强
-                    </el-button>
-                  </div>
-                </el-collapse-item>
-              </el-collapse>
-            </div>
-          </el-card>
-        </div>
 
         <!-- 人物管理面板 -->
         <div v-show="activeTab === 'characters'" class="panel-content">
@@ -271,7 +138,18 @@
                       <el-tag v-if="character.gender" type="info" size="small">{{ getGenderText(character.gender) }}</el-tag>
                       <span v-if="character.age" class="age-text">{{ character.age }}岁</span>
                     </div>
-                    <p v-if="character.personality" class="character-desc">{{ character.personality }}</p>
+                    <el-tooltip 
+                      v-if="character.personality" 
+                      :content="character.personality" 
+                      placement="right"
+                      :disabled="character.personality.length <= 60"
+                      effect="light"
+                      :show-after="300"
+                    >
+                      <p class="character-desc character-desc-truncated">
+                        {{ character.personality.length > 60 ? character.personality.substring(0, 60) + '...' : character.personality }}
+                      </p>
+                    </el-tooltip>
                     <div class="character-tags" v-if="character.tags && character.tags.length">
                       <el-tag v-for="tag in character.tags" :key="tag" size="small">{{ tag }}</el-tag>
                     </div>
@@ -333,9 +211,19 @@
                       {{ setting.category }}
                     </el-tag>
                   </div>
-                  <p class="worldview-description">
-                    {{ setting.description ? setting.description.substring(0, 80) + (setting.description.length > 80 ? '...' : '') : '暂无描述' }}
-                  </p>
+                  <el-tooltip 
+                    v-if="setting.description" 
+                    :content="setting.description" 
+                    placement="right"
+                    :disabled="setting.description.length <= 80"
+                    effect="light"
+                    :show-after="300"
+                  >
+                    <p class="worldview-description worldview-description-truncated">
+                      {{ setting.description.length > 80 ? setting.description.substring(0, 80) + '...' : setting.description }}
+                    </p>
+                  </el-tooltip>
+                  <p v-else class="worldview-description">暂无描述</p>
                   <div class="worldview-meta">
                     <span class="create-time">{{ formatDate(setting.createdAt) }}</span>
                     <span v-if="setting.generated" class="ai-generated">AI生成</span>
@@ -393,7 +281,17 @@
                   <h4>{{ corpus.title }}</h4>
                   <el-tag :type="getCorpusType(corpus.type)">{{ corpus.type }}</el-tag>
                 </div>
-                <p class="corpus-preview">{{ corpus.content.substring(0, 100) }}...</p>
+                <el-tooltip 
+                  :content="corpus.content" 
+                  placement="right"
+                  :disabled="corpus.content.length <= 100"
+                  effect="light"
+                  :show-after="300"
+                >
+                  <p class="corpus-preview corpus-preview-truncated">
+                    {{ corpus.content.length > 100 ? corpus.content.substring(0, 100) + '...' : corpus.content }}
+                  </p>
+                </el-tooltip>
                 <div class="corpus-actions">
                   <el-button size="small" @click="useCorpus(corpus)">使用</el-button>
                   <el-button size="small" @click="editCorpus(corpus)">编辑</el-button>
@@ -425,8 +323,39 @@
               <div v-for="event in events" :key="event.id" class="event-item">
                 <div class="event-marker"></div>
                 <div class="event-content">
-                  <h4>{{ event.title }}</h4>
-                  <p>{{ event.description }}</p>
+                  <div class="event-header">
+                    <h4>{{ event.title }}</h4>
+                    <div class="event-actions">
+                      <el-dropdown @command="(cmd) => handleEventAction(cmd, event)" trigger="click">
+                        <el-button size="small" type="text" @click.stop>
+                          <el-icon><MoreFilled /></el-icon>
+                        </el-button>
+                        <template #dropdown>
+                          <el-dropdown-menu>
+                            <el-dropdown-item command="edit">
+                              <el-icon><Edit /></el-icon>
+                              编辑
+                            </el-dropdown-item>
+                            <el-dropdown-item command="delete" divided>
+                              <el-icon><Delete /></el-icon>
+                              删除
+                            </el-dropdown-item>
+                          </el-dropdown-menu>
+                        </template>
+                      </el-dropdown>
+                    </div>
+                  </div>
+                  <el-tooltip 
+                    :content="event.description" 
+                    placement="right"
+                    :disabled="event.description.length <= 80"
+                    effect="light"
+                    :show-after="300"
+                  >
+                    <p class="event-desc event-desc-truncated">
+                      {{ event.description.length > 80 ? event.description.substring(0, 80) + '...' : event.description }}
+                    </p>
+                  </el-tooltip>
                   <div class="event-meta">
                     <el-tag size="small">{{ event.chapter }}</el-tag>
                     <span class="event-time">{{ event.time }}</span>
@@ -447,49 +376,47 @@
       <div class="editor-panel">
         <el-card shadow="never" v-if="currentChapter">
           <template #header>
-            <div class="card-header">
-              <div class="editor-title-section">
-                <span>✍️ {{ currentChapter.title }}</span>
-                <div class="editor-stats">
-                  <span>字数：{{ contentWordCount }}</span>
-                  <el-tag v-if="currentChapter.status" :type="getChapterStatusType(currentChapter.status)" size="small">
-                    {{ getChapterStatusText(currentChapter.status) }}
-                  </el-tag>
-                  <span v-if="hasUnsavedChanges" class="unsaved-indicator">● 未保存</span>
+            <div class="editor-header">
+              <div class="editor-header-left">
+                <h3 class="chapter-title">✍️ {{ currentChapter.title }}</h3>
+                <div class="chapter-meta">
+                  <span class="word-count">{{ contentWordCount }}字</span>
+                  <el-select 
+                    v-if="currentChapter.status" 
+                    v-model="currentChapter.status" 
+                    size="small" 
+                    style="width: 80px;"
+                    @change="updateChapterStatus"
+                    popper-class="chapter-status-dropdown"
+                  >
+                    <el-option label="草稿" value="draft" />
+                    <el-option label="完成" value="completed" />
+                    <el-option label="发表" value="published" />
+                  </el-select>
+                  <span v-if="isSaving" class="saving-indicator">● 保存中...</span>
                 </div>
               </div>
-              <div class="editor-actions">
-                <el-button @click="saveContent" :loading="isSaving" size="small">
-                  <el-icon><DocumentAdd /></el-icon>
-                  {{ isSaving ? '保存中...' : '保存' }}
-                </el-button>
-                <el-button @click="showPreview = !showPreview" size="small">
-                  <el-icon><View /></el-icon>
-                  {{ showPreview ? '编辑' : '预览' }}
-                </el-button>
+              <div class="editor-header-right">
+                <el-button-group>
+                  <el-button size="small" @click="generateFromOutline" :disabled="!currentChapter.description">
+                    <el-icon><Star /></el-icon>
+                    根据大纲生成
+                  </el-button>
+                  <el-button size="small" @click="openContinueDialog">
+                    <el-icon><ArrowRight /></el-icon>
+                    续写
+                  </el-button>
+                  <el-button size="small" @click="enhanceContent">
+                    <el-icon><Tools /></el-icon>
+                    优化
+                  </el-button>
+                </el-button-group>
               </div>
             </div>
           </template>
           
-          <!-- AI生成工具栏 -->
-          <div class="ai-toolbar" v-if="activeTab === 'editor'">
-            <el-button-group>
-              <el-button size="small" @click="generateFromOutline" :disabled="!currentChapter.description">
-                <el-icon><Star /></el-icon>
-                根据大纲生成
-              </el-button>
-              <el-button size="small" @click="continueWriting">
-                <el-icon><ArrowRight /></el-icon>
-                续写
-              </el-button>
-              <el-button size="small" @click="enhanceContent">
-                <el-icon><Tools /></el-icon>
-                优化
-              </el-button>
-            </el-button-group>
-          </div>
           
-          <div class="editor-container" v-show="!showPreview">
+          <div class="editor-container">
             <div class="editor-wrapper">
               <Toolbar
                 :editor="editorRef"
@@ -508,10 +435,25 @@
             </div>
           </div>
           
-          <!-- 预览区域 -->
-          <div class="preview-container" v-show="showPreview">
-            <div class="preview-content" v-html="content"></div>
+          <!-- 流式生成显示区域 -->
+          <div v-if="isStreaming && (streamingType === 'content' || streamingType === 'continue' || streamingType === 'optimize')" class="streaming-content-area">
+            <el-card shadow="never" class="streaming-card">
+              <template #header>
+                <div class="streaming-header">
+                  <span class="streaming-title">🤖 AI正在生成{{ getStreamingTypeText() }}...</span>
+                  <el-button size="small" type="text" @click="stopStreaming" v-if="isStreaming">
+                    <el-icon><Close /></el-icon>
+                    停止
+                  </el-button>
+                </div>
+              </template>
+              <div class="streaming-content">
+                <div class="streaming-text" v-html="formatStreamingContent(streamingContent)"></div>
+              </div>
+            </el-card>
           </div>
+
+
         </el-card>
         
         <!-- 未选择章节状态 -->
@@ -553,9 +495,9 @@
         </el-form-item>
         <el-form-item label="章节状态">
           <el-select v-model="chapterForm.status">
-            <el-option label="大纲" value="outline" />
             <el-option label="草稿" value="draft" />
             <el-option label="完成" value="completed" />
+            <el-option label="发表" value="published" />
           </el-select>
         </el-form-item>
       </el-form>
@@ -778,7 +720,7 @@
               </div>
             </template>
             <el-row :gutter="16">
-              <el-col :span="6">
+              <el-col :span="8">
                 <el-form-item label="目标字数" class="config-item">
                   <el-input-number 
                     v-model="generateConfig.wordCount" 
@@ -789,7 +731,7 @@
                   />
                 </el-form-item>
               </el-col>
-              <el-col :span="6">
+              <el-col :span="8">
                 <el-form-item label="写作视角" class="config-item">
                   <el-select v-model="generateConfig.style" size="small" style="width: 100%">
                     <el-option label="第一人称" value="first-person" />
@@ -807,12 +749,17 @@
                   />
                 </el-form-item>
               </el-col>
-              <el-col :span="4">
+            </el-row>
+            
+            <!-- 第二行：关联设置 -->
+            <el-row :gutter="16" style="margin-top: 16px;">
+              <el-col :span="24">
                 <el-form-item label="关联设置" class="config-item">
-                  <div class="checkbox-group">
+                  <div class="checkbox-group-horizontal">
                     <el-checkbox v-model="generateConfig.useContext" size="small">前文</el-checkbox>
                     <el-checkbox v-model="generateConfig.useCharacters" size="small">人物</el-checkbox>
                     <el-checkbox v-model="generateConfig.useWorldview" size="small">世界观</el-checkbox>
+                    <el-checkbox v-model="generateConfig.useEvents" size="small">事件线</el-checkbox>
                   </div>
                 </el-form-item>
               </el-col>
@@ -909,6 +856,35 @@
                   <div v-if="corpusData.length === 0" class="empty-materials">
                     <p>暂无语料库</p>
                     <el-button size="small" @click="addCorpus">创建语料</el-button>
+                  </div>
+                </el-tab-pane>
+
+                <el-tab-pane label="📅 事件线" name="events">
+                  <div class="tab-header">
+                    <span class="tab-count">已选择 {{ selectedMaterials.events.length }}/{{ events.length }}</span>
+                    <el-button size="small" @click="selectAllMaterials('events')" v-if="events.length > 0">全选</el-button>
+                  </div>
+                  <div class="materials-grid">
+                    <div 
+                      v-for="event in events" 
+                      :key="event.id"
+                      class="material-card"
+                      :class="{ selected: selectedMaterials.events.some(e => e.id === event.id) }"
+                      @click="toggleMaterial('events', event)"
+                    >
+                      <div class="material-header">
+                        <span class="material-name">{{ event.title }}</span>
+                        <el-tag :type="getImportanceType(event.importance)" size="small">第{{ event.chapter }}章</el-tag>
+                      </div>
+                      <p class="material-desc">{{ event.description?.substring(0, 40) || '暂无描述' }}...</p>
+                      <div class="material-meta">
+                        <span class="event-time">{{ event.time || '时间未定' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="events.length === 0" class="empty-materials">
+                    <p>暂无事件线</p>
+                    <el-button size="small" @click="addEvent">创建事件</el-button>
                   </div>
                 </el-tab-pane>
               </el-tabs>
@@ -1434,10 +1410,28 @@
         </div>
       </div>
       
+      <!-- 批量章节生成时的流式内容显示 -->
+      <div v-if="isStreaming && streamingType === 'batch-chapters' && showAIBatchChapterDialog" class="streaming-content-area">
+        <el-card shadow="never" class="streaming-card">
+          <template #header>
+            <div class="streaming-header">
+              <span>🔄 AI正在批量生成章节大纲...</span>
+              <el-tag type="success" size="small">实时生成中...</el-tag>
+              <el-button size="small" @click="stopStreaming">停止生成</el-button>
+            </div>
+          </template>
+          <div class="streaming-content">
+            <pre class="streaming-text-plain">{{ streamingContent }}</pre>
+          </div>
+        </el-card>
+      </div>
+      
       <template #footer>
         <el-button @click="showPromptDialog = false">取消</el-button>
         <el-button v-if="selectedPrompt" @click="copyPromptToClipboard">复制提示词</el-button>
-        <el-button v-if="selectedPrompt" type="primary" @click="useSelectedPrompt">使用此提示词</el-button>
+        <el-button v-if="selectedPrompt" type="primary" @click="useSelectedPrompt" :loading="isStreaming && streamingType === 'batch-chapters'">
+          {{ isStreaming && streamingType === 'batch-chapters' ? '生成中...' : '使用此提示词' }}
+        </el-button>
       </template>
     </el-dialog>
 
@@ -1599,6 +1593,452 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- AI生成单章对话框 -->
+    <el-dialog v-model="showAISingleChapterDialog" title="AI生成单章" width="800px" @close="resetAISingleChapterDialog">
+      <div class="ai-single-chapter-content">
+        <el-form :model="aiSingleChapterForm" label-width="120px">
+          <el-form-item label="章节标题">
+            <el-input v-model="aiSingleChapterForm.title" placeholder="请输入章节标题" />
+          </el-form-item>
+          <el-form-item label="情节要求">
+            <el-input v-model="aiSingleChapterForm.plotRequirement" type="textarea" :rows="3" placeholder="描述希望的情节发展..." />
+          </el-form-item>
+          <el-form-item label="提示词模板">
+            <el-select v-model="aiSingleChapterForm.template" placeholder="选择模板">
+              <el-option label="通用章节" value="general" />
+              <el-option label="战斗场景" value="battle" />
+              <el-option label="情感戏" value="emotion" />
+              <el-option label="转折剧情" value="turning" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+        
+        <!-- 流式生成内容显示 -->
+        <div v-if="isStreaming && streamingType === 'single-chapter'" class="streaming-content-area">
+          <el-card shadow="never" class="streaming-card">
+            <template #header>
+              <div class="streaming-header">
+                <span>🔄 AI正在生成章节大纲...</span>
+                <el-tag type="success" size="small">实时生成中...</el-tag>
+              </div>
+            </template>
+            <div class="streaming-content">
+              <pre class="streaming-text-plain">{{ streamingContent }}</pre>
+            </div>
+          </el-card>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="showAISingleChapterDialog = false">取消</el-button>
+        <el-button @click="selectPromptForSingleChapter">选择提示词</el-button>
+        <el-button type="primary" @click="generateSingleChapter" :loading="isGeneratingChapters">
+          <el-icon><Star /></el-icon>
+          生成章节
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- AI批量生成章节对话框 -->
+    <el-dialog v-model="showAIBatchChapterDialog" title="AI批量生成章节" width="900px" @close="resetAIBatchChapterDialog">
+      <div class="ai-batch-chapter-content">
+        <el-form :model="aiBatchChapterForm" label-width="120px">
+          <el-form-item label="生成数量">
+            <el-input-number v-model="aiBatchChapterForm.count" :min="1" :max="10" />
+          </el-form-item>
+          <el-form-item label="情节要求">
+            <el-input v-model="aiBatchChapterForm.plotRequirement" type="textarea" :rows="3" placeholder="描述希望的情节发展..." />
+          </el-form-item>
+          <el-form-item label="提示词模板">
+            <el-select v-model="aiBatchChapterForm.template" placeholder="选择模板">
+              <el-option label="通用章节" value="general" />
+              <el-option label="战斗场景" value="battle" />
+              <el-option label="情感戏" value="emotion" />
+              <el-option label="转折剧情" value="turning" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+        
+        <!-- 流式生成内容显示 -->
+        <div v-if="isStreaming && streamingType === 'batch-chapters'" class="streaming-content-area">
+          <el-card shadow="never" class="streaming-card">
+            <template #header>
+              <div class="streaming-header">
+                <span>🔄 AI正在批量生成章节大纲...</span>
+                <el-tag type="success" size="small">实时生成中...</el-tag>
+              </div>
+            </template>
+            <div class="streaming-content">
+              <pre class="streaming-text-plain">{{ streamingContent }}</pre>
+            </div>
+          </el-card>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="showAIBatchChapterDialog = false">取消</el-button>
+        <el-button @click="selectPromptForBatchChapter">选择提示词</el-button>
+        <el-button type="primary" @click="generateBatchChapters" :loading="isGeneratingChapters">
+          <el-icon><Star /></el-icon>
+          批量生成
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- AI优化内容对话框 -->
+    <el-dialog v-model="showAIOptimizeDialog" title="AI内容优化" width="1000px" @close="resetAIOptimizeDialog">
+      <div class="ai-optimize-content">
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-card shadow="never" class="optimize-input-card">
+              <template #header>
+                <span>📝 待优化内容</span>
+              </template>
+              <el-form :model="aiOptimizeForm" label-width="100px">
+                <el-form-item label="优化类型">
+                  <el-select v-model="aiOptimizeForm.optimizeType" placeholder="选择优化类型">
+                    <el-option label="语法润色" value="grammar" />
+                    <el-option label="文风优化" value="style" />
+                    <el-option label="情感增强" value="emotion" />
+                    <el-option label="逻辑梳理" value="logic" />
+                    <el-option label="自定义优化" value="custom" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item v-if="aiOptimizeForm.optimizeType === 'custom'" label="优化要求">
+                  <el-input v-model="aiOptimizeForm.customRequirement" type="textarea" :rows="2" placeholder="请描述具体的优化要求..." />
+                </el-form-item>
+                <el-form-item label="原始内容">
+                  <el-input v-model="aiOptimizeForm.originalContent" type="textarea" :rows="8" placeholder="请输入需要优化的内容..." />
+                </el-form-item>
+              </el-form>
+            </el-card>
+          </el-col>
+          <el-col :span="12">
+            <el-card shadow="never" class="optimize-result-card">
+              <template #header>
+                <span>✨ 优化结果</span>
+              </template>
+              <div v-if="isStreaming && streamingType === 'optimize'" class="streaming-content-area">
+                <div class="streaming-content">
+                  <div v-html="streamingContent" class="streaming-text"></div>
+                </div>
+              </div>
+              <div v-else-if="aiOptimizeForm.optimizedContent" class="optimized-content">
+                <el-input v-model="aiOptimizeForm.optimizedContent" type="textarea" :rows="8" readonly />
+              </div>
+              <div v-else class="empty-result">
+                <p>点击"开始优化"按钮查看优化结果</p>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </div>
+      <template #footer>
+        <el-button @click="showAIOptimizeDialog = false">取消</el-button>
+        <el-button @click="selectPromptForOptimize">选择提示词</el-button>
+        <el-button type="primary" @click="startOptimizeContent" :loading="isOptimizing">
+          <el-icon><Tools /></el-icon>
+          开始优化
+        </el-button>
+        <el-button v-if="aiOptimizeForm.optimizedContent" type="success" @click="applyOptimizedContent">
+          <el-icon><Check /></el-icon>
+          应用结果
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 新的AI优化对话框 -->
+    <el-dialog 
+      v-model="showNewOptimizeDialog" 
+      title="AI文本润色" 
+      width="1200px" 
+      @close="resetOptimizeDialog"
+    >
+      <div class="new-optimize-container">
+        <el-row :gutter="20">
+          <!-- 左侧：配置区域 -->
+          <el-col :span="8">
+            <el-card shadow="never" class="optimize-config-card">
+              <template #header>
+                <div class="card-header">
+                  <span>⚙️ 润色配置</span>
+                  <el-tag v-if="optimizeForm.mode === 'selection'" type="info" size="small">选择内容</el-tag>
+                  <el-tag v-else type="warning" size="small">整篇文章</el-tag>
+                </div>
+              </template>
+              
+              <!-- 预设提示词选择 -->
+              <div class="prompt-selection">
+                <h4>选择润色类型</h4>
+                <div class="prompt-list">
+                  <div 
+                    v-for="prompt in optimizePrompts" 
+                    :key="prompt.id"
+                    class="prompt-item"
+                    :class="{ active: optimizeForm.selectedPrompt?.id === prompt.id }"
+                    @click="selectNewOptimizePrompt(prompt)"
+                  >
+                    <div class="prompt-title">{{ prompt.title }}</div>
+                    <div class="prompt-desc">{{ prompt.description || prompt.content.substring(0, 60) + '...' }}</div>
+                  </div>
+                </div>
+                <div v-if="optimizePrompts.length === 0" class="empty-prompts">
+                  <p>暂无润色提示词</p>
+                  <el-button size="small" @click="goToPromptLibrary">去提示词库添加</el-button>
+                </div>
+              </div>
+              
+              <!-- 自定义提示词 -->
+              <div class="custom-prompt">
+                <h4>自定义润色要求</h4>
+                <el-input 
+                  v-model="optimizeForm.customPrompt"
+                  type="textarea"
+                  :rows="4"
+                  placeholder="输入具体的润色要求，例如：提升文字的画面感、增强对话的真实感、优化句式结构等..."
+                />
+              </div>
+
+              <!-- 原始内容预览 -->
+              <div class="original-content-preview">
+                <h4>原始内容预览</h4>
+                <el-input 
+                  :value="optimizeForm.originalContent"
+                  type="textarea"
+                  :rows="8"
+                  readonly
+                  placeholder="暂无内容"
+                  class="original-content-textarea"
+                />
+                <div class="content-stats">
+                  字数：{{ optimizeForm.originalContent.length }}
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+          
+          <!-- 右侧：优化结果区域 -->
+          <el-col :span="16">
+            <el-card shadow="never" class="optimize-result-card">
+              <template #header>
+                <div class="card-header">
+                  <span>✨ 润色结果</span>
+                  <el-button 
+                    v-if="optimizeForm.optimizedContent && !isOptimizeStreaming" 
+                    type="success" 
+                    size="small"
+                    @click="copyOptimizedContent"
+                  >
+                    <el-icon><CopyDocument /></el-icon>
+                    复制结果
+                  </el-button>
+                </div>
+              </template>
+              
+              <!-- 流式输出区域 -->
+              <div v-if="isOptimizeStreaming" class="streaming-area">
+                <div class="streaming-header">
+                  <span class="streaming-status">🤖 AI正在润色中...</span>
+                  <el-button size="small" type="text" @click="stopOptimizeStreaming">
+                    <el-icon><Close /></el-icon>
+                    停止
+                  </el-button>
+                </div>
+                <div class="streaming-content-box">
+                  <div class="streaming-text">{{ optimizeStreamingContent }}</div>
+                </div>
+              </div>
+              
+              <!-- 优化结果显示 -->
+              <div v-else-if="optimizeForm.optimizedContent" class="result-area">
+                <div class="result-content">
+                  {{ optimizeForm.optimizedContent }}
+                </div>
+                <div class="result-stats">
+                  <span>润色后字数：{{ optimizeForm.optimizedContent.length }}</span>
+                  <span>字数变化：{{ optimizeForm.optimizedContent.length - optimizeForm.originalContent.length > 0 ? '+' : '' }}{{ optimizeForm.optimizedContent.length - optimizeForm.originalContent.length }}</span>
+                </div>
+              </div>
+              
+              <!-- 空状态 -->
+              <div v-else class="empty-result">
+                <el-empty description="点击润色按钮开始AI润色" />
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </div>
+      
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showNewOptimizeDialog = false">取消</el-button>
+          <el-button 
+            type="primary" 
+            @click="startNewOptimize"
+            :loading="isOptimizeStreaming"
+            :disabled="!canStartOptimize"
+          >
+            <el-icon><MagicStick /></el-icon>
+            {{ isOptimizeStreaming ? '润色中...' : '开始润色' }}
+          </el-button>
+          <el-button 
+            v-if="optimizeForm.optimizedContent && optimizeForm.mode === 'selection'" 
+            type="success" 
+            @click="replaceSelectedContent"
+          >
+            <el-icon><Check /></el-icon>
+            替换选择内容
+          </el-button>
+          <el-button 
+            v-if="optimizeForm.optimizedContent && optimizeForm.mode === 'full'" 
+            type="success" 
+            @click="replaceFullContent"
+          >
+            <el-icon><Check /></el-icon>
+            替换全文内容
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- 新的AI续写对话框 -->
+    <el-dialog 
+      v-model="showNewContinueDialog" 
+      title="AI智能续写" 
+      width="1000px"
+      top="5vh"
+      @close="resetContinueDialog"
+    >
+      <div class="new-continue-container">
+        <el-row :gutter="20" style="height: 100%;">
+          <!-- 左侧：配置区域 -->
+          <el-col :span="10" style="height: 100%;">
+            <el-card shadow="never" class="continue-config-card">
+              <template #header>
+                <div class="card-header">
+                  <span>⚙️ 续写配置</span>
+                </div>
+              </template>
+              
+              <!-- 续写方向 -->
+              <div class="continue-direction">
+                <h4>续写方向</h4>
+                <el-input 
+                  v-model="continueForm.direction"
+                  type="textarea"
+                  :rows="6"
+                  placeholder="请描述续写方向，例如：&#10;- 推进主角与反派的对决&#10;- 展现角色内心的纠结&#10;- 描写紧张的追逐场面&#10;- 揭示重要的秘密&#10;&#10;留空将根据大纲和前文自动续写"
+                />
+              </div>
+              
+              <!-- 续写字数 -->
+              <div class="continue-word-count">
+                <h4>续写字数</h4>
+                                 <el-slider 
+                   v-model="continueForm.wordCount"
+                   :min="200"
+                   :max="5000"
+                   :step="100"
+                   show-stops
+                   show-input
+                 />
+                                 <div class="word-count-tips">
+                   <span>建议：200-1000字为佳，最多支持5000字</span>
+                 </div>
+              </div>
+
+                             <!-- 当前内容预览 -->
+               <div class="current-content-preview">
+                 <h4>当前内容</h4>
+                 <el-input
+                   :model-value="getCurrentFullContent()"
+                   type="textarea"
+                   :rows="6"
+                   readonly
+                   placeholder="暂无内容"
+                   style="max-height: 150px;"
+                 />
+                 <div class="content-stats">
+                   当前字数：{{ contentWordCount }}
+                 </div>
+               </div>
+            </el-card>
+          </el-col>
+          
+          <!-- 右侧：续写结果区域 -->
+          <el-col :span="14" style="height: 100%;">
+            <el-card shadow="never" class="continue-result-card">
+              <template #header>
+                <div class="card-header">
+                  <span>✍️ 续写结果</span>
+                  <el-button 
+                    v-if="continueStreamingContent && !isContinueStreaming" 
+                    type="success" 
+                    size="small"
+                    @click="copyContinueContent"
+                  >
+                    <el-icon><CopyDocument /></el-icon>
+                    复制结果
+                  </el-button>
+                </div>
+              </template>
+              
+              <!-- 流式输出区域 -->
+              <div v-if="isContinueStreaming" class="streaming-area">
+                <div class="streaming-header">
+                  <span class="streaming-status">🤖 AI正在续写中...</span>
+                  <el-button size="small" type="text" @click="stopContinueStreaming">
+                    <el-icon><Close /></el-icon>
+                    停止
+                  </el-button>
+                </div>
+                <div class="streaming-content-box">
+                  <div class="streaming-text">{{ continueStreamingContent }}</div>
+                </div>
+              </div>
+              
+              <!-- 续写结果显示 -->
+              <div v-else-if="continueStreamingContent" class="result-area">
+                <div class="result-content">
+                  {{ continueStreamingContent }}
+                </div>
+                <div class="result-stats">
+                  <span>续写字数：{{ continueStreamingContent.length }}</span>
+                  <span>总字数：{{ contentWordCount + continueStreamingContent.length }}</span>
+                </div>
+              </div>
+              
+              <!-- 空状态 -->
+              <div v-else class="empty-result">
+                <el-empty description="点击续写按钮开始AI续写" />
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
+      </div>
+      
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button @click="showNewContinueDialog = false">取消</el-button>
+          <el-button 
+            type="primary" 
+            @click="startNewContinue"
+            :loading="isContinueStreaming"
+            :disabled="!canStartContinue"
+          >
+            <el-icon><ArrowRight /></el-icon>
+            {{ isContinueStreaming ? '续写中...' : '开始续写' }}
+          </el-button>
+          <el-button 
+            v-if="continueStreamingContent && !isContinueStreaming" 
+            type="success" 
+            @click="appendContinueContent"
+          >
+            <el-icon><Check /></el-icon>
+            追加到文章
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -1607,7 +2047,7 @@ import { ref, computed, onMounted, onUnmounted, watch, shallowRef, nextTick } fr
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
-  ArrowLeft, DocumentAdd, View, Plus, Edit, Delete, Document, MoreFilled, ArrowDown, Star, Tools, ArrowRight, Right, Check, InfoFilled, MagicStick
+  ArrowLeft, DocumentAdd, Plus, Edit, Delete, Document, MoreFilled, ArrowDown, Star, Tools, ArrowRight, Right, Check, InfoFilled, MagicStick, Close, CopyDocument
 } from '@element-plus/icons-vue'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
@@ -1654,8 +2094,6 @@ const chapters = ref([])
 const currentChapter = ref(null)
 const content = ref('')
 const isSaving = ref(false)
-const hasUnsavedChanges = ref(false)
-const showPreview = ref(false)
 const showChapterDialog = ref(false)
 const editingChapter = ref(null)
 const editorRef = shallowRef()
@@ -1705,7 +2143,10 @@ const generateConfig = ref({
   wordCount: 2000,
   style: 'third-person',
   focus: '',
-  useContext: true
+  useContext: true,
+  useCharacters: true,
+  useWorldview: true,
+  useEvents: true
 })
 
 // 正文生成分类
@@ -1756,6 +2197,60 @@ const worldSettingSelectedPrompt = ref(null)
 const worldSettingPromptVariables = ref({})
 const worldSettingFinalPrompt = ref('')
 
+// 新增AI功能弹窗相关数据
+const showAISingleChapterDialog = ref(false)
+const showAIBatchChapterDialog = ref(false)
+const showAIOptimizeDialog = ref(false)
+
+// AI单章生成表单
+const aiSingleChapterForm = ref({
+  title: '',
+  plotRequirement: '',
+  template: 'general'
+})
+
+// AI批量生成章节表单
+const aiBatchChapterForm = ref({
+  count: 3,
+  plotRequirement: '',
+  template: 'general'
+})
+
+// AI优化表单
+const aiOptimizeForm = ref({
+  optimizeType: 'grammar',
+  customRequirement: '',
+  originalContent: '',
+  optimizedContent: ''
+})
+
+// 新的优化对话框相关数据
+const showNewOptimizeDialog = ref(false)
+const optimizeForm = ref({
+  originalContent: '',
+  optimizedContent: '',
+  customPrompt: '',
+  selectedPrompt: null,
+  mode: 'full', // 'selection' | 'full'
+  isOptimizing: false
+})
+// 润色优化提示词 - 从提示词库的润色分类中获取
+const optimizePrompts = computed(() => {
+  return availablePrompts.value.filter(prompt => prompt.category === 'polish')
+})
+const optimizeStreamingContent = ref('')
+const isOptimizeStreaming = ref(false)
+
+// 新的续写对话框相关数据
+const showNewContinueDialog = ref(false)
+const continueForm = ref({
+  direction: '', // 续写方向
+  wordCount: 500, // 续写字数
+  isStreaming: false
+})
+const continueStreamingContent = ref('')
+const isContinueStreaming = ref(false)
+
 // 管理数据
 const characters = ref([])
 // 使用store中的worldSettings
@@ -1774,7 +2269,7 @@ const showEventDialog = ref(false)
 const chapterForm = ref({
   title: '',
   description: '',
-  status: 'outline'
+  status: 'draft'
 })
 
 const aiChapterForm = ref({
@@ -1789,7 +2284,8 @@ const aiContentForm = ref({
   focus: '',
   useContext: true,
   useCharacters: true,
-  useWorldview: true
+  useWorldview: true,
+  useEvents: true
 })
 
 const characterForm = ref({
@@ -1853,42 +2349,28 @@ const contentWordCount = computed(() => {
 
 // 方法
 const goBack = () => {
-  if (hasUnsavedChanges.value) {
-    ElMessageBox.confirm('您有未保存的更改，确定要离开吗？', '确认离开', {
-      type: 'warning'
-    }).then(() => {
-      router.push('/novels')
-    }).catch(() => {})
-  } else {
-    router.push('/novels')
-  }
+  // 自动保存当前章节
+  saveCurrentChapter()
+  router.push('/novels')
 }
 
 const selectChapter = (chapter) => {
-  if (hasUnsavedChanges.value) {
-    ElMessageBox.confirm('当前章节有未保存的更改，切换章节将丢失更改，是否继续？', '确认切换', {
-      type: 'warning'
-    }).then(() => {
-      saveCurrentChapter()
-      loadChapter(chapter)
-    }).catch(() => {})
-  } else {
-    saveCurrentChapter()
-    loadChapter(chapter)
-  }
+  // 自动保存当前章节
+  saveCurrentChapter()
+  loadChapter(chapter)
 }
 
 const loadChapter = (chapter) => {
   currentChapter.value = chapter
   content.value = chapter.content || ''
-  hasUnsavedChanges.value = false
 }
 
 const saveCurrentChapter = () => {
-  if (currentChapter.value && hasUnsavedChanges.value) {
+  if (currentChapter.value) {
     currentChapter.value.content = content.value
     currentChapter.value.wordCount = contentWordCount.value
     currentChapter.value.updatedAt = new Date()
+    saveNovelData()
   }
 }
 
@@ -1897,7 +2379,7 @@ const addNewChapter = () => {
   chapterForm.value = {
     title: '',
     description: '',
-    status: 'outline'
+    status: 'draft'
   }
   showChapterDialog.value = true
 }
@@ -1907,7 +2389,7 @@ const editChapterTitle = (chapter) => {
   chapterForm.value = {
     title: chapter.title,
     description: chapter.description || '',
-    status: chapter.status || 'outline'
+    status: chapter.status || 'draft'
   }
   showChapterDialog.value = true
 }
@@ -1955,28 +2437,28 @@ const deleteChapter = (chapter) => {
     const index = chapters.value.findIndex(c => c.id === chapter.id)
     if (index > -1) {
       chapters.value.splice(index, 1)
+      
+      // 如果删除的是当前章节
       if (currentChapter.value?.id === chapter.id) {
         currentChapter.value = null
         content.value = ''
+        
+        // 如果还有其他章节，自动选择第一个章节
+        if (chapters.value.length > 0) {
+          setTimeout(() => {
+            selectChapter(chapters.value[0])
+          }, 100)
+        }
       }
+      
+      // 保存数据到localStorage，确保删除操作持久化
+      saveNovelData()
       ElMessage.success('章节已删除')
     }
   }).catch(() => {})
 }
 
-const saveContent = () => {
-  saveCurrentChapter()
-  
-  isSaving.value = true
-  
-  // 模拟保存到服务器
-  setTimeout(() => {
-    saveNovelData()
-    hasUnsavedChanges.value = false
-    isSaving.value = false
-    ElMessage.success('保存成功')
-  }, 1000)
-}
+
 
 const handleCreated = (editor) => {
   editorRef.value = editor
@@ -1989,10 +2471,10 @@ const handleChapterCommand = (command) => {
       addNewChapter()
       break
     case 'ai-single':
-      generateSingleChapter()
+      openAISingleChapterDialog()
       break
     case 'ai-batch':
-      activeTab.value = 'ai'
+      openAIBatchChapterDialog()
       break
   }
 }
@@ -2005,9 +2487,6 @@ const handleChapterAction = (command, chapter) => {
     case 'generate':
       openChapterGenerateDialog(chapter)
       break
-    case 'optimize':
-      optimizeChapter(chapter)
-      break
     case 'delete':
       deleteChapter(chapter)
       break
@@ -2016,20 +2495,20 @@ const handleChapterAction = (command, chapter) => {
 
 const getChapterStatusType = (status) => {
   const statusMap = {
-    outline: 'info',
     draft: 'warning',
-    completed: 'success'
+    completed: 'success',
+    published: 'primary'
   }
-  return statusMap[status] || 'info'
+  return statusMap[status] || 'warning'
 }
 
 const getChapterStatusText = (status) => {
   const statusMap = {
-    outline: '大纲',
     draft: '草稿',
-    completed: '完成'
+    completed: '完成',
+    published: '发表'
   }
-  return statusMap[status] || '大纲'
+  return statusMap[status] || '草稿'
 }
 
 // AI生成相关方法
@@ -2089,7 +2568,7 @@ ${chapters.value.map((ch, idx) => `第${idx + 1}章：${ch.title}`).join('\n')}
     
     // 流式调用AI生成
     const aiResponse = await apiService.generateTextStream(prompt, {
-      maxTokens: 2000,
+      maxTokens: null, // 移除token限制
       temperature: 0.8,
       type: 'outline'
     }, (chunk, fullContent) => {
@@ -2104,6 +2583,9 @@ ${chapters.value.map((ch, idx) => `第${idx + 1}章：${ch.title}`).join('\n')}
     // 解析AI响应，提取章节信息
     const newChapters = parseChapterResponse(aiResponse)
     
+    // 记录是否是第一次生成章节
+    const wasEmpty = chapters.value.length === 0
+    
     // 添加到章节列表
     newChapters.forEach((chapterData, index) => {
       const newChapter = {
@@ -2114,10 +2596,17 @@ ${chapters.value.map((ch, idx) => `第${idx + 1}章：${ch.title}`).join('\n')}
         wordCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        status: 'outline'
+        status: 'draft'
       }
       chapters.value.push(newChapter)
     })
+    
+    // 如果之前没有章节，自动选择第一个生成的章节
+    if (wasEmpty && chapters.value.length > 0) {
+      setTimeout(() => {
+        selectChapter(chapters.value[0])
+      }, 100)
+    }
     
     ElMessage.success(`成功生成${newChapters.length}个章节大纲`)
     saveNovelData()
@@ -2131,91 +2620,7 @@ ${chapters.value.map((ch, idx) => `第${idx + 1}章：${ch.title}`).join('\n')}
   }
 }
 
-const generateSingleChapter = async () => {
-  if (!checkApiAndBalance()) return
-  
-  isGeneratingChapters.value = true
-  isStreaming.value = true
-  streamingType.value = 'chapter'
-  streamingContent.value = ''
-  
-  try {
-    const prompt = `=== 小说基本信息 ===
-小说标题：${currentNovel.value?.title || '未命名小说'}
-小说类型：${currentNovel.value?.genre || '通用'}
-小说简介：${currentNovel.value?.description || '暂无简介'}
 
-=== 章节生成任务 ===
-请为上述小说生成一个新的章节大纲。
-
-已有章节概况：
-${chapters.value.map((ch, idx) => `第${idx + 1}章：${ch.title} - ${ch.description || '暂无描述'}`).join('\n')}
-
-要求：
-1. 生成第${chapters.value.length + 1}章的标题和大纲
-2. 与前文保持逻辑连贯性
-3. 推进主线剧情发展
-4. 包含具体的情节要点
-
-请按以下格式返回：
-标题：[章节标题]
-大纲：[详细的章节内容描述，包含主要情节、人物发展、重要事件等]`
-
-    console.log('开始AI生成单章大纲:', prompt)
-    
-    const aiResponse = await apiService.generateTextStream(prompt, {
-      maxTokens: 500,
-      temperature: 0.8,
-      type: 'outline'
-    }, (chunk, fullContent) => {
-      // 实时更新流式内容
-      streamingContent.value = fullContent
-    })
-    
-    if (!aiResponse.trim()) {
-      throw new Error('AI返回内容为空')
-    }
-    
-    // 解析AI响应
-    const lines = aiResponse.split('\n').filter(line => line.trim())
-    let title = `AI生成章节 ${chapters.value.length + 1}`
-    let description = '基于当前小说内容智能生成的章节大纲'
-    
-    for (const line of lines) {
-      const trimmedLine = line.trim()
-      if (trimmedLine.match(/^标题[：:]/)) {
-        title = trimmedLine.replace(/^标题[：:]/, '').trim()
-      } else if (trimmedLine.match(/^大纲[：:]/)) {
-        description = trimmedLine.replace(/^大纲[：:]/, '').trim()
-      } else if (description === '基于当前小说内容智能生成的章节大纲' && trimmedLine && !trimmedLine.match(/^(标题|大纲)/)) {
-        description = trimmedLine
-      }
-    }
-    
-    const newChapter = {
-      id: Date.now(),
-      title,
-      description,
-      content: '',
-      wordCount: 0,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      status: 'outline'
-    }
-    chapters.value.push(newChapter)
-    
-    ElMessage.success('章节大纲生成成功')
-    selectChapter(newChapter)
-    saveNovelData()
-  } catch (error) {
-    console.error('AI生成单章失败:', error)
-    ElMessage.error(`章节生成失败: ${error.message}`)
-  } finally {
-    isGeneratingChapters.value = false
-    isStreaming.value = false
-    streamingContent.value = ''
-  }
-}
 
 const generateContent = async () => {
   if (!checkApiAndBalance()) return
@@ -2242,13 +2647,17 @@ const generateContent = async () => {
     
     // 流式调用AI生成正文
     const aiResponse = await apiService.generateTextStream(prompt, {
-      maxTokens: aiContentForm.value.wordCount * 2, // 允许更多token
+      maxTokens: null, // 移除token限制
       temperature: 0.8,
       type: 'generation'
     }, (chunk, fullContent) => {
-      // 实时更新流式内容并格式化
+      console.log('普通生成流式回调:', chunk.length, '字符，总长度:', fullContent.length)
+      
+      // 更新流式显示内容（原始内容）
+      streamingContent.value = fullContent
+      
+      // 格式化内容用于编辑器
       const formattedContent = formatGeneratedContent(fullContent, currentChapter.value.title)
-      streamingContent.value = formattedContent
       
       // 如果是当前章节，实时更新编辑器内容
       if (streamingChapter.value?.id === currentChapter.value?.id) {
@@ -2292,10 +2701,7 @@ const generateChapterContent = async (chapter) => {
   generateContent()
 }
 
-const optimizeChapter = async (chapter) => {
-  selectChapter(chapter)
-  optimizeText()
-}
+
 
 const optimizeText = async () => {
   if (!checkApiAndBalance()) return
@@ -2328,7 +2734,7 @@ ${getOptimizeInstructions(optimizeType.value)}
     console.log(`开始AI${optimizeTypeText}:`, prompt.substring(0, 200) + '...')
     
     const aiResponse = await apiService.generateTextStream(prompt, {
-      maxTokens: Math.max(currentContent.length * 1.2, 1000),
+      maxTokens: null, // 移除token限制
       temperature: 0.3, // 优化时使用较低的温度，保持内容稳定
       type: 'polish'
     }, (chunk, fullContent) => {
@@ -2415,9 +2821,23 @@ const getStreamingTypeText = () => {
     chapter: '章节大纲',
     optimize: '文本优化',
     continue: '续写内容',
-    character: '角色生成'
+    character: '角色生成',
+    'single-chapter': '章节大纲',
+    'batch-chapters': '批量章节'
   }
   return typeMap[streamingType.value] || '内容'
+}
+
+// 停止流式生成
+const stopStreaming = () => {
+  isStreaming.value = false
+  isGeneratingContent.value = false
+  isGeneratingChapters.value = false
+  isOptimizing.value = false
+  streamingContent.value = ''
+  streamingType.value = ''
+  streamingChapter.value = null
+  ElMessage.info('已停止AI生成')
 }
 
 // 监听流式内容变化，自动滚动到底部
@@ -2647,8 +3067,36 @@ const getDefaultPrompts = () => {
       tags: ['政治', '社会', '制度'],
       isDefault: true
     },
+    // 批量章节生成提示词
     {
       id: 21,
+      title: '批量章节大纲生成器',
+      category: 'outline',
+      description: '一次性生成多个章节大纲的专用模板',
+      content: '请为小说《{小说标题}》生成{生成章节数量}个章节大纲。\n\n小说信息：\n- 标题：{小说标题}\n- 类型：{小说类型}\n- 简介：{小说简介}\n\n已有章节：\n{已有章节}\n\n生成要求：\n- 生成数量：{生成章节数量}个章节\n- 情节要求：{情节要求}\n- 模板类型：{模板类型}\n\n请确保：\n1. 每个章节都有引人入胜的标题\n2. 大纲内容详细具体，包含主要情节点\n3. 章节之间有逻辑连贯性\n4. 推进整体故事发展\n5. 符合小说类型和风格\n\n请严格按照以下格式输出：\n\n章节1：\n标题：[章节标题]\n大纲：[详细的章节内容描述，包含主要情节、人物发展、重要事件等]\n\n章节2：\n标题：[章节标题]\n大纲：[详细的章节内容描述，包含主要情节、人物发展、重要事件等]\n\n继续按此格式生成所有{生成章节数量}个章节。',
+      tags: ['批量', '章节', '大纲'],
+      isDefault: true
+    },
+    {
+      id: 22,
+      title: '连续剧情章节生成器',
+      category: 'outline',
+      description: '生成连续发展的章节剧情',
+      content: '请为小说《{小说标题}》设计{生成章节数量}个连续章节的剧情发展。\n\n故事背景：\n- 小说类型：{小说类型}\n- 当前进度：{已有章节}\n- 剧情要求：{情节要求}\n\n设计重点：\n1. 每个章节都有明确的冲突点\n2. 章节间形成起承转合的节奏\n3. 逐步推进主线剧情\n4. 适当安排高潮和缓冲\n5. 为后续发展埋下伏笔\n\n输出格式：\n\n章节1：\n标题：[吸引人的章节标题]\n大纲：[包含冲突、发展、转折的详细大纲]\n\n章节2：\n标题：[承接上章的章节标题]\n大纲：[推进剧情的详细内容描述]\n\n请生成完整的{生成章节数量}个章节。',
+      tags: ['连续', '剧情', '节奏'],
+      isDefault: true
+    },
+    {
+      id: 23,
+      title: '类型化章节生成器',
+      category: 'outline',
+      description: '根据小说类型特色生成章节',
+      content: '请为{小说类型}小说《{小说标题}》生成{生成章节数量}个具有类型特色的章节。\n\n类型特色要求：\n- 充分体现{小说类型}的特点\n- 符合该类型读者的期待\n- 包含该类型的经典元素\n- 情节要求：{情节要求}\n\n已有基础：{已有章节}\n\n请确保每个章节都：\n1. 突出{小说类型}的核心魅力\n2. 包含该类型的必备元素\n3. 节奏符合类型特点\n4. 有明确的看点和爽点\n5. 推进整体故事架构\n\n格式要求：\n\n章节1：\n标题：[体现类型特色的标题]\n大纲：[包含类型元素的详细大纲]\n\n章节2：\n标题：[延续类型风格的标题]\n大纲：[深化类型特色的内容描述]\n\n生成{生成章节数量}个章节。',
+      tags: ['类型化', '特色', '风格'],
+      isDefault: true
+    },
+    {
+      id: 24,
       title: '地理环境生成器',
       category: 'worldview',
       description: '生成世界的地理环境和自然设定',
@@ -2792,6 +3240,90 @@ watch(promptVariables, () => {
   generateFinalPrompt()
 }, { deep: true })
 
+// 监听生成配置变化，自动更新提示词变量
+watch(generateConfig, () => {
+  if (selectedPrompt.value && showChapterGenerateDialog.value) {
+    // 重新填充配置相关的变量
+    promptVariables.value['目标字数'] = generateConfig.value.wordCount.toString()
+    promptVariables.value['写作视角'] = getViewpointDescription(generateConfig.value.style)
+    promptVariables.value['重点内容'] = generateConfig.value.focus || '按大纲发展'
+    
+    // 如果启用了前文关联，重新填充前文概要
+    if (generateConfig.value.useContext && targetChapter.value) {
+      const chapterIndex = chapters.value.findIndex(ch => ch.id === targetChapter.value.id)
+      if (chapterIndex > 0) {
+        const previousChapters = chapters.value.slice(Math.max(0, chapterIndex - 2), chapterIndex)
+        const contextInfo = previousChapters.map(ch => 
+          `第${chapters.value.indexOf(ch) + 1}章《${ch.title}》：${ch.description || '暂无概要'}`
+        ).join('\n')
+        promptVariables.value['前文概要'] = contextInfo
+      } else {
+        // 如果没有前文，清空前文概要
+        if (promptVariables.value['前文概要']) {
+          promptVariables.value['前文概要'] = ''
+        }
+      }
+    } else {
+      // 如果未启用前文关联，清空前文概要
+      if (promptVariables.value['前文概要']) {
+        promptVariables.value['前文概要'] = ''
+      }
+    }
+    
+    // 重新生成最终提示词
+    generateFinalPrompt()
+  }
+}, { deep: true })
+
+// 监听选中素材变化，自动更新提示词变量
+watch(selectedMaterials, () => {
+  if (selectedPrompt.value && showChapterGenerateDialog.value) {
+    // 重新填充素材相关的变量
+    
+    // 填充人物信息
+    if (selectedMaterials.value.characters.length > 0) {
+      const characterInfo = selectedMaterials.value.characters.map(char => 
+        `${char.name}（${char.role}）：${char.personality || '暂无描述'}`
+      ).join('\n')
+      promptVariables.value['主要人物'] = characterInfo
+    } else {
+      // 如果没有选中人物，清空人物信息
+      if (promptVariables.value['主要人物']) {
+        promptVariables.value['主要人物'] = ''
+      }
+    }
+    
+    // 填充世界观信息
+    if (selectedMaterials.value.worldSettings.length > 0) {
+      const worldInfo = selectedMaterials.value.worldSettings.map(setting => 
+        `${setting.title}：${setting.description || '暂无描述'}`
+      ).join('\n')
+      promptVariables.value['世界观设定'] = worldInfo
+    } else {
+      // 如果没有选中世界观，清空世界观信息
+      if (promptVariables.value['世界观设定']) {
+        promptVariables.value['世界观设定'] = ''
+      }
+    }
+    
+    // 填充语料库信息
+    if (selectedMaterials.value.corpus.length > 0) {
+      const corpusInfo = selectedMaterials.value.corpus.map(item => 
+        `【${item.title}】${item.content}`
+      ).join('\n\n')
+      promptVariables.value['参考语料'] = corpusInfo
+    } else {
+      // 如果没有选中语料库，清空语料库信息
+      if (promptVariables.value['参考语料']) {
+        promptVariables.value['参考语料'] = ''
+      }
+    }
+    
+    // 重新生成最终提示词
+    generateFinalPrompt()
+  }
+}, { deep: true })
+
 // 获取分类名称
 const getCategoryName = () => {
   const categoryNames = {
@@ -2859,6 +3391,15 @@ const useSelectedPrompt = () => {
     return
   }
 
+  // 判断是否是批量章节生成
+  if (selectedPromptCategory.value === 'outline' && showAIBatchChapterDialog.value) {
+    // 批量章节生成提示词
+    generateBatchChaptersWithPrompt(finalPrompt.value)
+    showPromptDialog.value = false
+    ElMessage.success('正在使用自定义提示词批量生成章节...')
+    return
+  }
+
   // 原有的生成操作
   switch (selectedPromptCategory.value) {
     case 'outline':
@@ -2918,7 +3459,16 @@ const openChapterGenerateDialog = (chapter) => {
 
 // 自动填充变量
 const autoFillVariables = () => {
-  if (!selectedPrompt.value || !targetChapter.value) return
+  if (!selectedPrompt.value) return
+  
+  // 如果是批量章节生成，使用专门的填充函数
+  if (showAIBatchChapterDialog.value) {
+    autoFillBatchChapterVariables()
+    return
+  }
+  
+  // 正常章节生成需要目标章节
+  if (!targetChapter.value) return
   
   // 自动填充基本信息
   promptVariables.value['小说标题'] = currentNovel.value?.title || '未命名小说'
@@ -3034,6 +3584,16 @@ const getCorpusType = (type) => {
     '其他': 'info'
   }
   return typeMap[type] || 'info'
+}
+
+// 获取事件重要性样式
+const getImportanceType = (importance) => {
+  const typeMap = {
+    'high': 'danger',
+    'normal': 'primary',
+    'low': 'info'
+  }
+  return typeMap[importance] || 'primary'
 }
 
 // 显示批量生成对话框
@@ -3169,7 +3729,7 @@ ${batchGenerateConfig.value.customPrompt ? `特殊要求：${batchGenerateConfig
     console.log('=== 提示词结束 ===')
 
     const aiResponse = await apiService.generateTextStream(finalPromptWithFormat, {
-      maxTokens: 3000,
+      maxTokens: null, // 移除token限制
       temperature: 0.8,
       type: 'character'
     }, (chunk, fullContent) => {
@@ -3679,7 +4239,7 @@ ${worldGenerateConfig.value.customPrompt ? `特殊要求：${worldGenerateConfig
     }
 
     const aiResponse = await apiService.generateTextStream(finalPrompt, {
-      maxTokens: 2500,
+      maxTokens: null, // 移除token限制
       temperature: 0.8,
       type: 'worldview'
     }, (chunk, fullContent) => {
@@ -3965,7 +4525,7 @@ const generateWorldSettingAI = async () => {
 要求描述详细、生动，符合小说的类型、风格和整体世界观。`
 
     const aiResponse = await apiService.generateTextStream(prompt, {
-      maxTokens: 800,
+      maxTokens: null, // 移除token限制
       temperature: 0.8,
       type: 'worldview'
     }, (chunk, fullContent) => {
@@ -4014,7 +4574,7 @@ ${customPrompt}
 请确保生成的章节符合小说的整体风格、类型和世界观设定。`
     
     const aiResponse = await apiService.generateTextStream(promptWithNovelInfo, {
-      maxTokens: 2000,
+      maxTokens: null, // 移除token限制
       temperature: 0.8,
       type: 'outline'
     }, (chunk, fullContent) => {
@@ -4072,11 +4632,13 @@ const generateContentWithPrompt = async (customPrompt) => {
   try {
     console.log('使用自定义提示词生成正文:', customPrompt)
     
-    // 构建完整的生成上下文
+    // 构建完整的生成上下文，确保故事一致性和连贯性
     const context = buildGenerationContext()
-    const settings = aiContentForm.value
     
-    // 在自定义提示词前添加完整的配置信息
+    // 从generateConfig获取当前配置（这些是用户在弹窗中设置的最新配置）
+    const currentConfig = generateConfig.value
+    
+    // 构建完整的提示词，包含小说信息、配置和自定义提示词
     let promptWithNovelInfo = `=== 小说基本信息 ===
 小说标题：${currentNovel.value?.title || '未命名小说'}
 小说类型：${currentNovel.value?.genre || '通用'}
@@ -4086,65 +4648,106 @@ const generateContentWithPrompt = async (customPrompt) => {
 章节标题：${currentChapter.value.title}
 章节大纲：${currentChapter.value.description || '暂无大纲'}
 
-=== 生成配置 ===
-生成类型：${getContentCategoryDescription(selectedContentCategory.value)}
-目标字数：约${settings.wordCount}字
-写作视角：${getViewpointDescription(settings.style)}
-重点内容：${settings.focus || '按大纲发展'}
+=== 生成配置（用户最新设置） ===
+目标字数：约${currentConfig.wordCount}字
+写作视角：${getViewpointDescription(currentConfig.style)}
+重点内容：${currentConfig.focus || '按大纲发展'}
 
 `
 
-    // 添加人物信息
-    if (context.characters.length > 0 && settings.useCharacters) {
+    // 添加人物信息（如果用户启用了人物关联或选择了人物素材）
+    if ((context.characters.length > 0 && currentConfig.useCharacters) || selectedMaterials.value.characters.length > 0) {
+      const charactersToUse = selectedMaterials.value.characters.length > 0 ? selectedMaterials.value.characters : context.characters
       promptWithNovelInfo += `=== 主要人物设定 ===
-${context.characters.map(char => 
+${charactersToUse.map(char => 
   `- ${char.name}（${char.role}）：${char.personality || '暂无描述'}`
 ).join('\n')}
 
 `
     }
 
-    // 添加世界观信息
-    if (context.worldSettings.length > 0 && settings.useWorldview) {
+    // 添加世界观信息（如果用户启用了世界观关联或选择了世界观素材）
+    if ((context.worldSettings.length > 0 && currentConfig.useWorldview) || selectedMaterials.value.worldSettings.length > 0) {
+      const worldSettingsToUse = selectedMaterials.value.worldSettings.length > 0 ? selectedMaterials.value.worldSettings : context.worldSettings
       promptWithNovelInfo += `=== 世界观设定 ===
-${context.worldSettings.map(setting => 
+${worldSettingsToUse.map(setting => 
   `- ${setting.title}：${setting.description || '暂无描述'}`
 ).join('\n')}
 
 `
     }
 
-    // 添加前文上下文
-    if (context.previousChapters.length > 0 && settings.useContext) {
+    // 添加语料库信息（如果用户选择了语料库素材）
+    if (selectedMaterials.value.corpus.length > 0) {
+      promptWithNovelInfo += `=== 参考语料 ===
+${selectedMaterials.value.corpus.map(item => 
+  `【${item.title}】${item.content}`
+).join('\n\n')}
+
+`
+    }
+
+    // 添加事件线信息（如果用户启用了事件线关联或选择了事件素材）
+    if ((context.recentEvents.length > 0 && currentConfig.useEvents) || selectedMaterials.value.events.length > 0) {
+      const eventsToUse = selectedMaterials.value.events.length > 0 ? selectedMaterials.value.events : context.recentEvents
+      promptWithNovelInfo += `=== 相关事件线 ===
+${eventsToUse.map(event => 
+  `- 第${event.chapter}章：${event.title} - ${event.description || '暂无描述'}`
+).join('\n')}
+
+【事件线要求】本章内容需要考虑以上事件的影响和发展，确保情节的连贯性和合理性。
+
+`
+    }
+
+    // 添加前文上下文（如果用户启用了前文关联）
+    if (context.previousChapters.length > 0 && currentConfig.useContext) {
       const recentChapters = context.previousChapters.slice(-2) // 最近2章
       promptWithNovelInfo += `=== 前文概要（必须保持连贯） ===
 ${recentChapters.map((ch, idx) => 
   `第${context.previousChapters.length - recentChapters.length + idx + 1}章《${ch.title}》：${ch.description || '暂无概要'}`
 ).join('\n')}
 
+=== 前文结尾内容（保持文风和情节连贯） ===`
+
+      // 获取最近章节的实际内容，特别是结尾部分
+      recentChapters.forEach((ch, idx) => {
+        const chapterNumber = context.previousChapters.length - recentChapters.length + idx + 1
+        if (ch.content && ch.content.trim()) {
+          // 提取章节内容的最后500字作为连贯参考
+          const content = ch.content.replace(/<[^>]*>/g, '').trim() // 去除HTML标签
+          const lastPart = content.length > 500 ? '...' + content.slice(-500) : content
+          promptWithNovelInfo += `
+【第${chapterNumber}章结尾部分】
+${lastPart}
+`
+        }
+      })
+
+      promptWithNovelInfo += `
 【重要】必须确保本章内容与前文在以下方面保持连贯：
 - 人物性格和行为逻辑一致
 - 时间线和事件发展合理
 - 情节推进自然流畅
 - 世界观设定保持统一
+- 文风和叙述风格保持一致
+- 与前文结尾部分的情节自然衔接
 
 `
     }
 
-    promptWithNovelInfo += `=== 正文生成要求 ===
+    // 添加用户的自定义提示词作为核心生成要求
+    promptWithNovelInfo += `=== 核心生成要求 ===
 ${customPrompt}
 
-=== 核心约束（必须严格遵守） ===
-1. 【主题控制】严格按照章节大纲发展情节，不得偏离主线剧情
-2. 【连贯性】与前文内容保持逻辑连贯，人物行为符合已建立的性格
-3. 【一致性】世界观、人物设定、时间线必须与前文保持一致
-4. 【章节完整性】确保本章有明确的开始、发展、高潮、结尾
-
-=== 写作要求 ===
-1. 保持${getViewpointDescription(settings.style)}的叙述方式
-2. 字数控制在${settings.wordCount}字左右
-3. 根据生成类型重点突出：${getContentCategoryGuidance(selectedContentCategory.value)}
-4. 突出重点：${settings.focus || '按大纲推进剧情'}
+=== 写作要求（必须严格遵守） ===
+1. 保持${getViewpointDescription(currentConfig.style)}的叙述方式
+2. 字数控制在${currentConfig.wordCount}字左右
+3. 重点突出：${currentConfig.focus || '按大纲推进剧情'}
+4. 严格按照章节大纲发展情节，不得偏离主线剧情
+5. 与前文内容保持逻辑连贯，人物行为符合已建立的性格
+6. 世界观、人物设定、时间线必须与前文保持一致
+7. 确保本章有明确的开始、发展、高潮、结尾
 
 === 质量标准 ===
 1. 情节发展必须合理，不出现逻辑漏洞
@@ -4161,13 +4764,22 @@ ${customPrompt}
 
 请确保生成的正文符合小说的整体风格、类型和世界观设定，与章节大纲保持一致。`
     
+    console.log('=== 发送给AI的完整提示词 ===')
+    console.log(promptWithNovelInfo)
+    console.log('=== 提示词结束 ===')
+    
     const aiResponse = await apiService.generateTextStream(promptWithNovelInfo, {
-      maxTokens: aiContentForm.value.wordCount * 2,
+      maxTokens: null, // 移除token限制
       temperature: 0.8,
       type: 'generation'
     }, (chunk, fullContent) => {
+      console.log('提示词生成流式回调:', chunk.length, '字符，总长度:', fullContent.length)
+      
+      // 更新流式显示内容（原始内容，用于流式显示）
+      streamingContent.value = fullContent
+      
+      // 格式化内容用于编辑器
       const formattedContent = formatGeneratedContent(fullContent, currentChapter.value.title)
-      streamingContent.value = formattedContent
       
       if (streamingChapter.value?.id === currentChapter.value?.id) {
         content.value = formattedContent
@@ -4249,10 +4861,11 @@ ${getCurrentTextForOptimization()}
 请确保优化后的内容符合小说的整体风格、类型和世界观设定。`
     
     const optimizedContent = await apiService.generateTextStream(promptWithNovelInfo, {
-      maxTokens: 2000,
+      maxTokens: null, // 移除token限制
       temperature: 0.7,
       type: 'optimize'
     }, (chunk, fullContent) => {
+      console.log('优化流式回调:', chunk.length, '字符，总长度:', fullContent.length)
       streamingContent.value = fullContent
     })
     
@@ -4541,7 +5154,7 @@ ${customPrompt}
 请确保续写内容符合小说的整体风格、类型和世界观设定，与前文保持完美连贯性。`
     
     const aiResponse = await apiService.generateTextStream(promptWithNovelInfo, {
-      maxTokens: 1000,
+      maxTokens: null, // 移除token限制
       temperature: 0.8,
       type: 'continue'
     }, (chunk, fullContent) => {
@@ -4639,7 +5252,7 @@ ${customPrompt}
     console.log('=== 提示词结束 ===')
 
     const aiResponse = await apiService.generateTextStream(customPromptWithFormat, {
-      maxTokens: 800,
+      maxTokens: null, // 移除token限制
       temperature: 0.8,
       type: 'character'
     }, (chunk, fullContent) => {
@@ -4747,17 +5360,18 @@ ${chapters.value.map((ch, idx) => `第${idx + 1}章：${ch.title} - ${ch.descrip
 
     console.log('开始AI生成章节大纲:', prompt)
     
-    const aiResponse = await apiService.generateText(prompt, {
-      maxTokens: 800,
+    const aiResponse = await apiService.generateTextStream(prompt, {
+      maxTokens: null, // 移除token限制
       temperature: 0.8,
       type: 'outline'
+    }, (chunk, fullContent) => {
+      // 实时更新章节大纲
+      chapterForm.value.description = fullContent
     })
     
     if (!aiResponse.trim()) {
       throw new Error('AI返回内容为空')
     }
-    
-    chapterForm.value.description = aiResponse.trim()
     ElMessage.success('章节大纲生成成功')
   } catch (error) {
     console.error('AI生成大纲失败:', error)
@@ -4851,13 +5465,17 @@ ${context.characters.map(char => `- ${char.name}：${char.personality || '暂无
     console.log('开始AI续写:', prompt.substring(0, 300) + '...')
     
     const aiResponse = await apiService.generateTextStream(prompt, {
-      maxTokens: 1000,
+      maxTokens: null, // 移除token限制
       temperature: 0.8,
       type: 'continue'
     }, (chunk, fullContent) => {
-      // 实时更新流式内容并格式化
+      console.log('续写流式回调:', chunk.length, '字符，总长度:', fullContent.length)
+      
+      // 更新流式显示内容（原始内容）
+      streamingContent.value = fullContent
+      
+      // 格式化续写内容
       const formattedContent = formatGeneratedContent(fullContent, '')
-      streamingContent.value = formattedContent
       
       // 如果是当前章节，实时更新编辑器内容（追加续写内容）
       if (streamingChapter.value?.id === currentChapter.value?.id) {
@@ -4898,7 +5516,377 @@ ${context.characters.map(char => `- ${char.name}：${char.personality || '暂无
 }
 
 const enhanceContent = () => {
-  optimizeText()
+  if (!checkApiAndBalance()) return
+  
+  // 获取编辑器选中的内容
+  let selectedText = ''
+  
+  if (editorRef.value) {
+    try {
+      selectedText = editorRef.value.getSelectionText() || ''
+    } catch (error) {
+      console.warn('获取选择文本失败:', error)
+      selectedText = ''
+    }
+  }
+  
+  // 设置优化内容
+  if (selectedText.trim()) {
+    // 有选择内容，优化选择的内容
+    optimizeForm.value.originalContent = selectedText.trim()
+    optimizeForm.value.mode = 'selection'
+    ElMessage.info('检测到选择内容，将优化选择的文本')
+  } else {
+    // 没有选择内容，优化整篇文章
+    const fullText = content.value.replace(/<[^>]*>/g, '').trim() // 去除HTML标签
+    if (!fullText) {
+      ElMessage.warning('当前章节没有内容可以优化')
+      return
+    }
+    optimizeForm.value.originalContent = fullText
+    optimizeForm.value.mode = 'full'
+    ElMessage.info('未检测到选择内容，将优化整篇文章')
+  }
+  
+  // 显示新的优化对话框
+  showNewOptimizeDialog.value = true
+}
+
+// 新润色对话框相关方法
+const canStartOptimize = computed(() => {
+  return optimizeForm.value.originalContent.trim() && 
+         (optimizeForm.value.selectedPrompt || optimizeForm.value.customPrompt.trim())
+})
+
+// 为新润色对话框选择提示词
+const selectNewOptimizePrompt = (prompt) => {
+  optimizeForm.value.selectedPrompt = prompt
+  console.log('选择润色提示词:', prompt.title)
+}
+
+// 新续写对话框相关方法
+const canStartContinue = computed(() => {
+  return content.value.trim().length >= 50 // 至少需要50字的内容才能续写
+})
+
+// 打开续写对话框
+const openContinueDialog = () => {
+  if (!checkApiAndBalance()) return
+  
+  if (!currentChapter.value) {
+    ElMessage.warning('请先选择一个章节')
+    return
+  }
+  
+  if (!content.value || content.value.trim().length < 50) {
+    ElMessage.warning('请先写一些内容，AI将基于现有内容进行续写')
+    return
+  }
+  
+  // 重置表单
+  continueForm.value.direction = ''
+  continueForm.value.wordCount = 500
+  continueStreamingContent.value = ''
+  isContinueStreaming.value = false
+  
+  showNewContinueDialog.value = true
+}
+
+// 获取当前内容全文
+const getCurrentFullContent = () => {
+  if (!content.value) return ''
+  
+  // 移除HTML标签，返回纯文本内容
+  return content.value.replace(/<[^>]*>/g, '').trim()
+}
+
+// 重置续写对话框
+const resetContinueDialog = () => {
+  continueForm.value.direction = ''
+  continueForm.value.wordCount = 500
+  continueStreamingContent.value = ''
+  isContinueStreaming.value = false
+}
+
+// 开始新的续写
+const startNewContinue = async () => {
+  if (!canStartContinue.value) {
+    ElMessage.warning('内容太少，无法进行续写')
+    return
+  }
+  
+  isContinueStreaming.value = true
+  continueStreamingContent.value = ''
+  
+  try {
+    const context = buildGenerationContext()
+    const currentContent = content.value.replace(/<[^>]*>/g, '').trim()
+    
+    // 构建续写提示词
+    let prompt = `=== 小说基本信息 ===
+小说标题：${currentNovel.value?.title || '未命名小说'}
+小说类型：${currentNovel.value?.genre || '通用'}
+小说简介：${currentNovel.value?.description || '暂无简介'}
+
+=== 当前章节信息 ===
+章节标题：${currentChapter.value.title}
+章节大纲：${currentChapter.value.description || '暂无大纲'}
+
+=== 续写任务 ===
+请为上述小说的当前章节续写内容。
+
+=== 已有内容（必须保持连贯） ===
+${currentContent}
+
+${context.characters.length > 0 ? `=== 主要人物设定 ===
+${context.characters.map(char => `- ${char.name}：${char.personality || '暂无描述'}`).join('\n')}
+
+` : ''}=== 续写要求 ===
+1. 基于已有内容的风格和语调继续创作
+2. 保持情节的连贯性和逻辑性
+3. 符合章节大纲的发展方向
+4. 续写长度约${continueForm.value.wordCount}字`
+
+    // 如果有续写方向，添加到提示词中
+    if (continueForm.value.direction.trim()) {
+      prompt += `
+5. 续写方向：${continueForm.value.direction.trim()}`
+    }
+
+    prompt += `
+
+=== 核心约束（必须严格遵守） ===
+1. 【连贯性】必须与已有内容在语言风格、情节发展、人物行为上完全连贯
+2. 【一致性】人物性格、世界观设定、时间线必须与前文保持一致
+3. 【逻辑性】情节发展必须符合逻辑，不能出现突兀的转折
+4. 【主题控制】不得偏离章节大纲的主要情节线
+
+请直接输出续写内容，无需额外说明：`
+
+    console.log('开始新的AI续写:', prompt.substring(0, 200) + '...')
+    
+    // 流式调用AI续写
+    const aiResponse = await apiService.generateTextStream(prompt, {
+      maxTokens: null,
+      temperature: 0.8,
+      type: 'continue'
+    }, (chunk, fullContent) => {
+      // 实时更新流式内容
+      continueStreamingContent.value = fullContent
+    })
+    
+    if (!aiResponse.trim()) {
+      throw new Error('AI返回内容为空')
+    }
+    
+    // 设置最终续写结果
+    continueStreamingContent.value = aiResponse.trim()
+    ElMessage.success('续写完成')
+    
+  } catch (error) {
+    console.error('AI续写失败:', error)
+    ElMessage.error(`续写失败: ${error.message}`)
+  } finally {
+    isContinueStreaming.value = false
+  }
+}
+
+// 停止续写流式输出
+const stopContinueStreaming = () => {
+  isContinueStreaming.value = false
+  ElMessage.info('已停止续写')
+}
+
+// 复制续写内容
+const copyContinueContent = async () => {
+  if (!continueStreamingContent.value) {
+    ElMessage.warning('没有可复制的内容')
+    return
+  }
+  
+  try {
+    await navigator.clipboard.writeText(continueStreamingContent.value)
+    ElMessage.success('续写内容已复制到剪贴板')
+  } catch (error) {
+    console.error('复制失败:', error)
+    ElMessage.error('复制失败，请手动复制')
+  }
+}
+
+// 追加续写内容到文章
+const appendContinueContent = () => {
+  if (!continueStreamingContent.value) {
+    ElMessage.warning('没有可追加的内容')
+    return
+  }
+  
+  // 格式化续写内容
+  const formattedContent = formatGeneratedContent(continueStreamingContent.value, '')
+  
+  // 追加到当前内容
+  content.value = content.value + '\n' + formattedContent
+  hasUnsavedChanges.value = true
+  
+  ElMessage.success('续写内容已追加到文章')
+  showNewContinueDialog.value = false
+  
+  // 自动保存
+  setTimeout(() => {
+    saveCurrentChapter()
+  }, 1000)
+}
+
+
+
+const resetOptimizeDialog = () => {
+  optimizeForm.value.optimizedContent = ''
+  optimizeForm.value.customPrompt = ''
+  optimizeForm.value.selectedPrompt = null
+  optimizeStreamingContent.value = ''
+  isOptimizeStreaming.value = false
+}
+
+const startNewOptimize = async () => {
+  if (!canStartOptimize.value) {
+    ElMessage.warning('请选择润色类型或输入自定义要求')
+    return
+  }
+  
+  isOptimizeStreaming.value = true
+  optimizeStreamingContent.value = ''
+  optimizeForm.value.optimizedContent = ''
+  
+  try {
+    // 构建优化提示词
+    let promptContent = ''
+    if (optimizeForm.value.selectedPrompt) {
+      promptContent = optimizeForm.value.selectedPrompt.content
+    } else if (optimizeForm.value.customPrompt.trim()) {
+      promptContent = optimizeForm.value.customPrompt.trim()
+    }
+    
+    const fullPrompt = `${promptContent}
+
+原始内容：
+${optimizeForm.value.originalContent}
+
+请直接输出优化后的内容，无需额外说明：`
+
+    console.log('开始新的AI优化:', fullPrompt.substring(0, 200) + '...')
+    
+    // 流式调用AI优化
+    const aiResponse = await apiService.generateTextStream(fullPrompt, {
+      maxTokens: null,
+      temperature: 0.7,
+      type: 'optimize'
+    }, (chunk, fullContent) => {
+      // 实时更新流式内容
+      optimizeStreamingContent.value = fullContent
+    })
+    
+    if (!aiResponse.trim()) {
+      throw new Error('AI返回内容为空')
+    }
+    
+    // 设置最终优化结果
+    optimizeForm.value.optimizedContent = aiResponse.trim()
+    ElMessage.success('内容润色完成')
+    
+  } catch (error) {
+    console.error('AI润色失败:', error)
+    ElMessage.error(`润色失败: ${error.message}`)
+  } finally {
+    isOptimizeStreaming.value = false
+    optimizeStreamingContent.value = ''
+  }
+}
+
+const stopOptimizeStreaming = () => {
+  isOptimizeStreaming.value = false
+  optimizeStreamingContent.value = ''
+  ElMessage.info('已停止润色')
+}
+
+
+
+const copyOptimizedContent = async () => {
+  if (!optimizeForm.value.optimizedContent) {
+    ElMessage.warning('没有可复制的内容')
+    return
+  }
+  
+  try {
+    await navigator.clipboard.writeText(optimizeForm.value.optimizedContent)
+    ElMessage.success('内容已复制到剪贴板')
+  } catch (error) {
+    console.error('复制失败:', error)
+    ElMessage.error('复制失败，请手动复制')
+  }
+}
+
+const replaceSelectedContent = () => {
+  if (!optimizeForm.value.optimizedContent) {
+    ElMessage.warning('没有可替换的内容')
+    return
+  }
+  
+  try {
+    if (editorRef.value && optimizeForm.value.mode === 'selection') {
+      // 检查是否有选择的内容
+      const selectedText = editorRef.value.getSelectionText()
+      if (selectedText) {
+        // 替换选中的内容
+        editorRef.value.insertText(optimizeForm.value.optimizedContent)
+        ElMessage.success('选择内容已替换为润色结果')
+        hasUnsavedChanges.value = true
+        showNewOptimizeDialog.value = false
+        
+        // 自动保存
+        setTimeout(() => {
+          saveCurrentChapter()
+        }, 1000)
+      } else {
+        ElMessage.warning('未找到选择的内容，请重新选择要替换的文本')
+      }
+    } else {
+      ElMessage.warning('当前不是选择模式或编辑器未就绪')
+    }
+  } catch (error) {
+    console.error('替换失败:', error)
+    ElMessage.error('替换失败')
+  }
+}
+
+const replaceFullContent = () => {
+  if (!optimizeForm.value.optimizedContent) {
+    ElMessage.warning('没有可替换的内容')
+    return
+  }
+  
+  ElMessageBox.confirm(
+    '确定要用润色后的内容替换整篇文章吗？此操作不可撤销。',
+    '确认替换',
+    {
+      confirmButtonText: '确定替换',
+      cancelButtonText: '取消',
+      type: 'warning'
+    }
+  ).then(() => {
+    // 替换全文内容
+    const formattedContent = formatGeneratedContent(optimizeForm.value.optimizedContent, currentChapter.value?.title || '')
+    content.value = formattedContent
+    hasUnsavedChanges.value = true
+    
+    ElMessage.success('全文内容已替换为润色结果')
+    showNewOptimizeDialog.value = false
+    
+    // 自动保存
+    setTimeout(() => {
+      saveCurrentChapter()
+    }, 1000)
+  }).catch(() => {
+    // 用户取消
+  })
 }
 
 // 解析AI章节响应
@@ -4939,36 +5927,92 @@ const parseChapterResponse = (response) => {
 
 // 策略1: 按章节号分割
 const parseByChapterNumber = (response) => {
+  console.log('策略1: 按章节号分割')
   const chapters = []
-  const chapterBlocks = response.split(/章节\d+[：:]/i).filter(block => block.trim())
   
-  if (chapterBlocks.length <= 1) return null
+  // 更灵活的章节分割正则，支持多种格式
+  const chapterRegex = /章节(\d+)[：:\s]*[\r\n]/gi
+  const matches = []
+  let match
   
-  chapterBlocks.forEach((block, index) => {
-    if (index === 0 && !block.includes('标题')) return // 跳过第一个空块
+  while ((match = chapterRegex.exec(response)) !== null) {
+    matches.push({
+      index: match.index,
+      number: parseInt(match[1]),
+      fullMatch: match[0]
+    })
+  }
+  
+  console.log('找到章节标记:', matches.length, '个')
+  
+  if (matches.length === 0) {
+    // 尝试更宽松的匹配
+    const blocks = response.split(/章节\d+[：:]/i).filter(block => block.trim())
+    console.log('宽松匹配找到块数:', blocks.length)
     
-    const lines = block.split('\n').filter(line => line.trim())
-    let title = `第${index + 1}章`
-    let description = ''
+    if (blocks.length <= 1) return null
     
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (trimmed.match(/^标题[：:]/)) {
-        title = trimmed.replace(/^标题[：:]/, '').trim()
-      } else if (trimmed.match(/^大纲[：:]/)) {
-        description = trimmed.replace(/^大纲[：:]/, '').trim()
-      } else if (description && !trimmed.match(/^(标题|大纲)/)) {
-        description += '\n' + trimmed
-      } else if (!description && !trimmed.match(/^(标题|大纲)/) && trimmed.length > 0) {
-        description = trimmed
+    blocks.forEach((block, index) => {
+      if (index === 0 && !block.includes('标题')) return // 跳过第一个可能的空块
+      
+      const lines = block.split('\n').filter(line => line.trim())
+      let title = `第${index}章`
+      let description = ''
+      
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (trimmed.match(/^标题[：:]/)) {
+          title = trimmed.replace(/^标题[：:]/, '').trim()
+        } else if (trimmed.match(/^大纲[：:]/)) {
+          description = trimmed.replace(/^大纲[：:]/, '').trim()
+        } else if (description && !trimmed.match(/^(标题|大纲)/)) {
+          description += '\n' + trimmed
+        } else if (!description && !trimmed.match(/^(标题|大纲)/) && trimmed.length > 0) {
+          description = trimmed
+        }
+      }
+      
+      if (title && description) {
+        chapters.push({ title, description })
+      }
+    })
+  } else {
+    // 精确匹配处理
+    for (let i = 0; i < matches.length; i++) {
+      const currentMatch = matches[i]
+      const nextMatch = matches[i + 1]
+      
+      const startIndex = currentMatch.index + currentMatch.fullMatch.length
+      const endIndex = nextMatch ? nextMatch.index : response.length
+      const block = response.substring(startIndex, endIndex).trim()
+      
+      console.log(`处理章节${currentMatch.number}:`, block.substring(0, 100))
+      
+      const lines = block.split('\n').filter(line => line.trim())
+      let title = `第${currentMatch.number}章`
+      let description = ''
+      
+      for (const line of lines) {
+        const trimmed = line.trim()
+        if (trimmed.match(/^标题[：:]/)) {
+          title = trimmed.replace(/^标题[：:]/, '').trim()
+        } else if (trimmed.match(/^大纲[：:]/)) {
+          description = trimmed.replace(/^大纲[：:]/, '').trim()
+        } else if (description && !trimmed.match(/^(标题|大纲)/)) {
+          description += '\n' + trimmed
+        } else if (!description && !trimmed.match(/^(标题|大纲)/) && trimmed.length > 0) {
+          description = trimmed
+        }
+      }
+      
+      if (title && description) {
+        chapters.push({ title, description })
+        console.log(`成功解析章节${currentMatch.number}: ${title}`)
       }
     }
-    
-    if (title && description) {
-      chapters.push({ title, description })
-    }
-  })
+  }
   
+  console.log('策略1解析结果:', chapters.length, '个章节')
   return chapters.length > 0 ? chapters : null
 }
 
@@ -5181,9 +6225,9 @@ const getTemplateDescription = (template) => {
 }
 
 // 构建内容生成提示词
-const buildContentPrompt = (chapter, context) => {
+const buildContentPrompt = (chapter, context, config = null) => {
   const novel = currentNovel.value
-  const settings = aiContentForm.value
+  const settings = config || aiContentForm.value
   
   let prompt = `=== 小说基本信息 ===
 小说标题：${novel?.title || '未命名小说'}
@@ -5221,6 +6265,18 @@ ${context.characters.map(char =>
 ${context.worldSettings.map(setting => 
   `- ${setting.title}：${setting.description || '暂无描述'}`
 ).join('\n')}
+
+`
+  }
+
+  // 添加事件线信息
+  if (context.recentEvents.length > 0 && settings.useEvents) {
+    prompt += `相关事件线：
+${context.recentEvents.map(event => 
+  `- 第${event.chapter}章：${event.title} - ${event.description || '暂无描述'}`
+).join('\n')}
+
+【事件线要求】本章内容需要考虑以上事件的影响和发展，确保情节的连贯性和合理性。
 
 `
   }
@@ -5479,7 +6535,7 @@ const generateCharacterAI = async () => {
     console.log('=== 提示词结束 ===')
 
     const aiResponse = await apiService.generateTextStream(promptWithFormat, {
-      maxTokens: 800,
+      maxTokens: null, // 移除token限制
       temperature: 0.8,
       type: 'character'
     }, (chunk, fullContent) => {
@@ -5746,6 +6802,38 @@ const deleteEvent = (event) => {
   }).catch(() => {})
 }
 
+// 处理事件操作
+const handleEventAction = (command, event) => {
+  switch (command) {
+    case 'edit':
+      editEvent(event)
+      break
+    case 'delete':
+      deleteEvent(event)
+      break
+  }
+}
+
+// 更新章节状态
+const updateChapterStatus = () => {
+  if (!currentChapter.value) return
+  
+  // 同步更新章节列表中的状态
+  const chapterIndex = chapters.value.findIndex(ch => ch.id === currentChapter.value.id)
+  if (chapterIndex > -1) {
+    chapters.value[chapterIndex].status = currentChapter.value.status
+    chapters.value[chapterIndex].updatedAt = new Date()
+  }
+  
+  // 保存更新
+  saveCurrentChapter()
+  saveNovelData()
+  
+  ElMessage.success(`章节状态已更新为：${getChapterStatusText(currentChapter.value.status)}`)
+}
+
+
+
 // 世界观保存方法
 const saveWorldSetting = () => {
   if (!worldForm.value.title.trim()) {
@@ -5802,8 +6890,32 @@ const saveCorpus = () => {
   saveNovelData()
 }
 
+// 自动保存防抖定时器
+let autoSaveTimer = null
+
 const onContentChange = () => {
-  hasUnsavedChanges.value = true
+  // 清除之前的定时器
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer)
+  }
+  
+  // 设置新的定时器，2秒后自动保存
+  autoSaveTimer = setTimeout(() => {
+    autoSave()
+  }, 2000)
+}
+
+// 自动保存函数
+const autoSave = () => {
+  if (currentChapter.value) {
+    isSaving.value = true
+    
+    setTimeout(() => {
+      saveCurrentChapter()
+      isSaving.value = false
+      // 不显示保存成功消息，避免打扰用户
+    }, 300) // 短暂延迟以显示保存状态
+  }
 }
 
 // 数据保存方法
@@ -5854,6 +6966,11 @@ const initNovel = () => {
           createdAt: new Date(chapter.createdAt),
           updatedAt: new Date(chapter.updatedAt)
         }))
+        
+        // 如果存在章节，自动选择第一章节
+        if (chapters.value.length > 0) {
+          selectChapter(chapters.value[0])
+        }
       }
       
       // 加载相关数据
@@ -5886,6 +7003,12 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  // 页面卸载时自动保存
+  if (autoSaveTimer) {
+    clearTimeout(autoSaveTimer)
+  }
+  saveCurrentChapter()
+  
   if (editorRef.value) {
     editorRef.value.destroy()
   }
@@ -5894,6 +7017,9 @@ onUnmounted(() => {
 // 监听路由参数变化
 watch(() => route.query.novelId, () => {
   if (route.query.novelId) {
+    // 重置当前章节
+    currentChapter.value = null
+    content.value = ''
     initNovel()
   }
 })
@@ -6107,6 +7233,511 @@ const generateChapterContentWithDialog = async () => {
     isGeneratingContent.value = false
   }
 }
+
+// 新增AI功能弹窗方法
+const openAISingleChapterDialog = () => {
+  aiSingleChapterForm.value = {
+    title: '',
+    plotRequirement: '',
+    template: 'general'
+  }
+  showAISingleChapterDialog.value = true
+}
+
+const openAIBatchChapterDialog = () => {
+  aiBatchChapterForm.value = {
+    count: 3,
+    plotRequirement: '',
+    template: 'general'
+  }
+  showAIBatchChapterDialog.value = true
+}
+
+const openAIOptimizeDialog = (chapter) => {
+  aiOptimizeForm.value = {
+    optimizeType: 'grammar',
+    customRequirement: '',
+    originalContent: chapter ? chapter.content || '' : '',
+    optimizedContent: ''
+  }
+  showAIOptimizeDialog.value = true
+}
+
+const resetAISingleChapterDialog = () => {
+  aiSingleChapterForm.value = {
+    title: '',
+    plotRequirement: '',
+    template: 'general'
+  }
+  streamingContent.value = ''
+  isStreaming.value = false
+}
+
+const resetAIBatchChapterDialog = () => {
+  aiBatchChapterForm.value = {
+    count: 3,
+    plotRequirement: '',
+    template: 'general'
+  }
+  streamingContent.value = ''
+  isStreaming.value = false
+}
+
+const resetAIOptimizeDialog = () => {
+  aiOptimizeForm.value = {
+    optimizeType: 'grammar',
+    customRequirement: '',
+    originalContent: '',
+    optimizedContent: ''
+  }
+  streamingContent.value = ''
+  isStreaming.value = false
+}
+
+const generateSingleChapter = async () => {
+  if (!checkApiAndBalance()) return
+  
+  if (!aiSingleChapterForm.value.title.trim()) {
+    ElMessage.warning('请输入章节标题')
+    return
+  }
+  
+  isGeneratingChapters.value = true
+  isStreaming.value = true
+  streamingType.value = 'single-chapter'
+  streamingContent.value = ''
+  
+  try {
+    const prompt = `=== 小说基本信息 ===
+小说标题：${currentNovel.value?.title || '未命名小说'}
+小说类型：${currentNovel.value?.genre || '通用'}
+小说简介：${currentNovel.value?.description || '暂无简介'}
+
+=== 章节生成任务 ===
+请为上述小说生成一个新的章节大纲。
+
+章节标题：${aiSingleChapterForm.value.title}
+情节要求：${aiSingleChapterForm.value.plotRequirement || '请根据章节标题合理发展'}
+模板类型：${getTemplateDescription(aiSingleChapterForm.value.template)}
+
+已有章节概况：
+${chapters.value.map((ch, idx) => `第${idx + 1}章：${ch.title} - ${ch.description || '暂无描述'}`).join('\n')}
+
+要求：
+1. 生成第${chapters.value.length + 1}章的详细大纲
+2. 与前文保持逻辑连贯性
+3. 推进主线剧情发展
+4. 包含具体的情节要点
+
+请按以下格式返回：
+大纲：[详细的章节内容描述，包含主要情节、人物发展、重要事件等]`
+
+    console.log('开始AI生成单章大纲:', prompt)
+    
+    const aiResponse = await apiService.generateTextStream(prompt, {
+      maxTokens: null, // 移除token限制
+      temperature: 0.8,
+      type: 'outline'
+    }, (chunk, fullContent) => {
+      streamingContent.value = fullContent
+    })
+    
+    if (!aiResponse.trim()) {
+      throw new Error('AI返回内容为空')
+    }
+    
+    // 创建新章节
+    const newChapter = {
+      id: Date.now(),
+      title: aiSingleChapterForm.value.title,
+      description: aiResponse.replace(/^大纲：/, '').trim(),
+      content: '',
+      wordCount: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      status: 'outline'
+    }
+    
+    chapters.value.push(newChapter)
+    showAISingleChapterDialog.value = false
+    ElMessage.success('单章大纲生成成功')
+    saveNovelData()
+  } catch (error) {
+    console.error('AI生成单章失败:', error)
+    ElMessage.error(`单章生成失败: ${error.message}`)
+  } finally {
+    isGeneratingChapters.value = false
+    isStreaming.value = false
+    streamingContent.value = ''
+  }
+}
+
+const generateBatchChapters = async () => {
+  if (!checkApiAndBalance()) return
+  
+  isGeneratingChapters.value = true
+  isStreaming.value = true
+  streamingType.value = 'batch-chapters'
+  streamingContent.value = ''
+  
+  try {
+    const count = aiBatchChapterForm.value.count
+    const plotRequirement = aiBatchChapterForm.value.plotRequirement
+    const template = aiBatchChapterForm.value.template
+    
+    console.log('批量生成章节配置检查:', {
+      count: count,
+      plotRequirement: plotRequirement,
+      template: template,
+      formData: aiBatchChapterForm.value
+    })
+    
+    // 构建章节编号示例
+    const chapterExamples = []
+    for (let i = 1; i <= count; i++) {
+      chapterExamples.push(`章节${i}：
+标题：[章节标题]
+大纲：[详细的章节内容描述，包含主要情节、人物发展、重要事件等]`)
+    }
+    
+    const prompt = `=== 小说基本信息 ===
+小说标题：${currentNovel.value?.title || '未命名小说'}
+小说类型：${currentNovel.value?.genre || '通用'}
+小说简介：${currentNovel.value?.description || '暂无简介'}
+
+=== 章节生成任务 ===
+请为上述小说生成${count}个章节大纲。
+
+要求：
+- 必须生成${count}个章节，不多不少
+- 情节要求：${plotRequirement || '请根据小说主题合理发展'}
+- 模板类型：${getTemplateDescription(template)}
+- 每个章节包含：标题、详细大纲描述
+- 章节之间要有逻辑连贯性
+
+已有章节：${chapters.value.length}个
+${chapters.value.map((ch, idx) => `第${idx + 1}章：${ch.title}`).join('\n')}
+
+请严格按照以下格式返回${count}个章节：
+
+${chapterExamples.join('\n\n')}
+
+【重要约束】：
+1. 必须严格按照"章节X："格式开始每个章节（X为数字1到${count}）
+2. 每个章节必须包含"标题："和"大纲："两个字段
+3. 必须生成完整的${count}个章节，缺一不可
+4. 确保格式完全一致，便于程序解析
+5. 不要生成超过${count}个章节
+6. 不要生成少于${count}个章节
+
+请现在开始生成${count}个章节大纲：`
+
+    console.log('批量生成章节最终提示词:', prompt.substring(0, 500) + '...')
+    console.log('请求生成章节数量:', count)
+    
+    const aiResponse = await apiService.generateTextStream(prompt, {
+      maxTokens: null, // 移除token限制
+      temperature: 0.8,
+      type: 'outline'
+    }, (chunk, fullContent) => {
+      streamingContent.value = fullContent
+    })
+    
+    if (!aiResponse.trim()) {
+      throw new Error('AI返回内容为空')
+    }
+    
+    // 解析AI响应，提取章节信息
+    console.log('AI响应长度:', aiResponse.length)
+    console.log('AI响应内容:', aiResponse)
+    
+    const newChapters = parseChapterResponse(aiResponse)
+    
+    console.log('解析结果:', newChapters)
+    console.log('期望生成数量:', count, '实际解析数量:', newChapters.length)
+    
+    if (newChapters.length !== count) {
+      console.warn(`警告：期望生成${count}个章节，但实际解析出${newChapters.length}个章节`)
+      ElMessage.warning(`期望生成${count}个章节，但实际解析出${newChapters.length}个章节`)
+    }
+    
+    // 添加到章节列表
+    newChapters.forEach((chapterData, index) => {
+      const newChapter = {
+        id: Date.now() + index,
+        title: chapterData.title || `AI生成章节 ${chapters.value.length + index + 1}`,
+        description: chapterData.description || chapterData.outline || '暂无描述',
+        content: '',
+        wordCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        status: 'outline'
+      }
+      chapters.value.push(newChapter)
+      console.log(`添加章节 ${index + 1}:`, newChapter.title)
+    })
+    
+    showAIBatchChapterDialog.value = false
+    ElMessage.success(`成功生成${newChapters.length}个章节大纲`)
+    saveNovelData()
+  } catch (error) {
+    console.error('AI批量生成章节失败:', error)
+    ElMessage.error(`批量生成失败: ${error.message}`)
+  } finally {
+    isGeneratingChapters.value = false
+    isStreaming.value = false
+    streamingContent.value = ''
+  }
+}
+
+const startOptimizeContent = async () => {
+  if (!checkApiAndBalance()) return
+  
+  if (!aiOptimizeForm.value.originalContent.trim()) {
+    ElMessage.warning('请输入需要优化的内容')
+    return
+  }
+  
+  isOptimizing.value = true
+  isStreaming.value = true
+  streamingType.value = 'optimize'
+  streamingContent.value = ''
+  aiOptimizeForm.value.optimizedContent = ''
+  
+  try {
+    let optimizeInstruction = ''
+    switch (aiOptimizeForm.value.optimizeType) {
+      case 'grammar':
+        optimizeInstruction = '请对以下文本进行语法润色，修正语法错误，提升表达流畅度'
+        break
+      case 'style':
+        optimizeInstruction = '请对以下文本进行文风优化，提升文学性和可读性'
+        break
+      case 'emotion':
+        optimizeInstruction = '请对以下文本进行情感增强，加强情感表达和感染力'
+        break
+      case 'logic':
+        optimizeInstruction = '请对以下文本进行逻辑梳理，优化结构和逻辑关系'
+        break
+      case 'custom':
+        optimizeInstruction = aiOptimizeForm.value.customRequirement || '请对以下文本进行优化'
+        break
+    }
+    
+    const prompt = `${optimizeInstruction}：
+
+原始内容：
+${aiOptimizeForm.value.originalContent}
+
+要求：
+1. 保持原意不变
+2. 优化表达方式
+3. 提升整体质量
+4. 直接输出优化后的内容，无需说明
+
+优化后内容：`
+
+    console.log('开始AI优化内容:', prompt)
+    
+    const aiResponse = await apiService.generateTextStream(prompt, {
+      maxTokens: null, // 移除token限制
+      temperature: 0.7,
+      type: 'optimize'
+    }, (chunk, fullContent) => {
+      streamingContent.value = fullContent
+      aiOptimizeForm.value.optimizedContent = fullContent
+    })
+    
+    if (!aiResponse.trim()) {
+      throw new Error('AI返回内容为空')
+    }
+    
+    aiOptimizeForm.value.optimizedContent = aiResponse
+    ElMessage.success('内容优化完成')
+  } catch (error) {
+    console.error('AI优化失败:', error)
+    ElMessage.error(`优化失败: ${error.message}`)
+  } finally {
+    isOptimizing.value = false
+    isStreaming.value = false
+    streamingContent.value = ''
+  }
+}
+
+const applyOptimizedContent = () => {
+  if (currentChapter.value && aiOptimizeForm.value.optimizedContent) {
+    currentChapter.value.content = aiOptimizeForm.value.optimizedContent
+    content.value = aiOptimizeForm.value.optimizedContent
+    hasUnsavedChanges.value = true
+    showAIOptimizeDialog.value = false
+    ElMessage.success('优化内容已应用到当前章节')
+  } else {
+    ElMessage.warning('无法应用优化内容')
+  }
+}
+
+const selectPromptForSingleChapter = () => {
+  selectedPromptCategory.value = 'outline'
+  showPromptDialog.value = true
+}
+
+const selectPromptForBatchChapter = () => {
+  selectedPromptCategory.value = 'outline'
+  showPromptDialog.value = true
+  
+  // 自动填充批量章节生成的变量
+  nextTick(() => {
+    if (selectedPrompt.value) {
+      autoFillBatchChapterVariables()
+    }
+  })
+}
+
+// 自动填充批量章节变量
+const autoFillBatchChapterVariables = () => {
+  if (!selectedPrompt.value) return
+  
+  // 自动填充基本信息
+  promptVariables.value['小说标题'] = currentNovel.value?.title || '未命名小说'
+  promptVariables.value['小说类型'] = currentNovel.value?.genre || '通用'
+  promptVariables.value['小说简介'] = currentNovel.value?.description || '暂无简介'
+  promptVariables.value['生成章节数量'] = aiBatchChapterForm.value.count.toString()
+  promptVariables.value['情节要求'] = aiBatchChapterForm.value.plotRequirement || '请根据小说主题合理发展'
+  promptVariables.value['模板类型'] = getTemplateDescription(aiBatchChapterForm.value.template)
+  
+  // 填充已有章节信息
+  if (chapters.value.length > 0) {
+    const existingChapters = chapters.value.map((ch, idx) => 
+      `第${idx + 1}章：${ch.title} - ${ch.description || '暂无描述'}`
+    ).join('\n')
+    promptVariables.value['已有章节'] = existingChapters
+  } else {
+    promptVariables.value['已有章节'] = '暂无已有章节'
+  }
+  
+  generateFinalPrompt()
+}
+
+// 监听批量章节表单变化，自动更新提示词变量
+watch(() => aiBatchChapterForm.value, () => {
+  if (showAIBatchChapterDialog.value && selectedPrompt.value) {
+    autoFillBatchChapterVariables()
+  }
+}, { deep: true })
+
+const selectPromptForOptimize = () => {
+  selectedPromptCategory.value = 'optimize'
+  showPromptDialog.value = true
+}
+
+// 使用自定义提示词批量生成章节
+const generateBatchChaptersWithPrompt = async (customPrompt) => {
+  if (!checkApiAndBalance()) return
+  
+  isGeneratingChapters.value = true
+  isStreaming.value = true
+  streamingType.value = 'batch-chapters'
+  streamingContent.value = ''
+  
+  try {
+    const count = aiBatchChapterForm.value.count
+    const plotRequirement = aiBatchChapterForm.value.plotRequirement
+    const template = aiBatchChapterForm.value.template
+    
+    console.log('使用自定义提示词批量生成章节配置检查:', {
+      count: count,
+      plotRequirement: plotRequirement,
+      template: template,
+      customPrompt: customPrompt.substring(0, 200) + '...'
+    })
+    
+    // 在自定义提示词基础上添加格式约束
+    const promptWithFormat = `${customPrompt}
+
+=== 重要格式约束（必须严格遵守） ===
+无论上述提示词如何，你必须严格按照以下格式输出${count}个章节，不得有任何偏差：
+
+章节1：
+标题：[章节标题]
+大纲：[详细的章节内容描述，包含主要情节、人物发展、重要事件等]
+
+章节2：
+标题：[章节标题]
+大纲：[详细的章节内容描述，包含主要情节、人物发展、重要事件等]
+
+章节3：
+标题：[章节标题]
+大纲：[详细的章节内容描述，包含主要情节、人物发展、重要事件等]
+
+【核心约束】：
+1. 必须严格按照"章节X："格式开始每个章节（X为数字1到${count}）
+2. 每个章节必须包含"标题："和"大纲："两个字段
+3. 必须生成完整的${count}个章节，缺一不可
+4. 确保格式完全一致，便于程序解析
+5. 不要生成超过${count}个章节
+6. 不要生成少于${count}个章节
+7. 标题要简洁有吸引力
+8. 大纲要详细具体，包含具体的情节发展
+
+请现在开始生成${count}个章节大纲：`
+
+    console.log('批量生成章节最终提示词:', promptWithFormat.substring(0, 500) + '...')
+    console.log('请求生成章节数量:', count)
+    
+    const aiResponse = await apiService.generateTextStream(promptWithFormat, {
+      maxTokens: null, // 移除token限制
+      temperature: 0.8,
+      type: 'outline'
+    }, (chunk, fullContent) => {
+      streamingContent.value = fullContent
+    })
+    
+    if (!aiResponse.trim()) {
+      throw new Error('AI返回内容为空')
+    }
+    
+    // 解析AI响应，提取章节信息
+    console.log('AI响应长度:', aiResponse.length)
+    console.log('AI响应内容:', aiResponse)
+    
+    const newChapters = parseChapterResponse(aiResponse)
+    
+    console.log('解析结果:', newChapters)
+    console.log('期望生成数量:', count, '实际解析数量:', newChapters.length)
+    
+    if (newChapters.length !== count) {
+      console.warn(`警告：期望生成${count}个章节，但实际解析出${newChapters.length}个章节`)
+      ElMessage.warning(`期望生成${count}个章节，但实际解析出${newChapters.length}个章节`)
+    }
+    
+    // 添加到章节列表
+    newChapters.forEach((chapterData, index) => {
+      const newChapter = {
+        id: Date.now() + index,
+        title: chapterData.title || `AI生成章节 ${chapters.value.length + index + 1}`,
+        description: chapterData.description || chapterData.outline || '暂无描述',
+        content: '',
+        wordCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        status: 'outline'
+      }
+      chapters.value.push(newChapter)
+      console.log(`添加章节 ${index + 1}:`, newChapter.title)
+    })
+    
+    showAIBatchChapterDialog.value = false
+    ElMessage.success(`成功使用自定义提示词生成${newChapters.length}个章节大纲`)
+    saveNovelData()
+  } catch (error) {
+    console.error('AI批量生成章节失败:', error)
+    ElMessage.error(`批量生成失败: ${error.message}`)
+  } finally {
+    isGeneratingChapters.value = false
+    isStreaming.value = false
+    streamingContent.value = ''
+  }
+}
 </script>
 
 <style scoped>
@@ -6183,27 +7814,100 @@ const generateChapterContentWithDialog = async () => {
   font-weight: 600;
 }
 
-.editor-title-section {
+/* 新的编辑器头部样式 */
+.editor-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.editor-header-left {
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-
-.editor-actions {
-  display: flex;
   gap: 8px;
-  align-items: center;
 }
 
-.editor-stats {
+.chapter-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #303133;
+  line-height: 1.4;
+}
+
+.chapter-meta {
   display: flex;
-  gap: 15px;
-  font-size: 14px;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
   color: #909399;
 }
 
-.unsaved-indicator {
-  color: #f56c6c !important;
+.word-count {
+  font-weight: 500;
+  color: #606266;
+}
+
+.editor-header-right {
+  flex-shrink: 0;
+  margin-left: 20px;
+}
+
+.saving-indicator {
+  color: #409eff !important;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* 编辑器内容样式优化 - 更适合小说阅读 */
+.editor-wrapper :deep(.w-e-text-container) {
+  background-color: #fcfcfc;
+  border: none;
+}
+
+.editor-wrapper :deep(.w-e-text) {
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Hiragino Sans GB', 'Source Han Sans CN', 'WenQuanYi Micro Hei', sans-serif;
+  font-size: 16px;
+  line-height: 2.0;
+  color: #2c3e50;
+  padding: 30px 40px;
+  letter-spacing: 0.5px;
+  text-align: justify;
+}
+
+.editor-wrapper :deep(.w-e-text p) {
+  margin: 0 0 1.2em 0;
+  text-indent: 2em;
+  line-height: 2.0;
+}
+
+.editor-wrapper :deep(.w-e-text h1),
+.editor-wrapper :deep(.w-e-text h2),
+.editor-wrapper :deep(.w-e-text h3) {
+  margin: 1.5em 0 1em 0;
+  line-height: 1.6;
+  text-indent: 0;
+}
+
+.editor-wrapper :deep(.w-e-text h1) {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.editor-wrapper :deep(.w-e-text h2) {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.editor-wrapper :deep(.w-e-text h3) {
+  font-size: 18px;
+  font-weight: 600;
 }
 
 .chapters-list {
@@ -6350,6 +8054,13 @@ const generateChapterContentWithDialog = async () => {
 .checkbox-group {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.checkbox-group-horizontal {
+  display: flex;
+  gap: 24px;
+  align-items: center;
   flex-wrap: wrap;
 }
 
@@ -6816,10 +8527,6 @@ const generateChapterContentWithDialog = async () => {
   border-top: 1px solid #e4e7ed;
 }
 
-.ai-toolbar {
-  margin-bottom: 10px;
-}
-
 .ai-tools {
   padding: 10px;
 }
@@ -6950,6 +8657,15 @@ const generateChapterContentWithDialog = async () => {
   text-overflow: ellipsis;
 }
 
+.character-desc-truncated {
+  cursor: help;
+  transition: color 0.2s ease;
+}
+
+.character-desc-truncated:hover {
+  color: #303133;
+}
+
 .character-tags {
   margin-top: 4px;
 }
@@ -6969,6 +8685,15 @@ const generateChapterContentWithDialog = async () => {
   color: #909399;
   margin-top: 4px;
   line-height: 1.3;
+}
+
+.chapter-desc-truncated {
+  cursor: help;
+  transition: color 0.2s ease;
+}
+
+.chapter-desc-truncated:hover {
+  color: #606266;
 }
 
 .chapter-meta {
@@ -7058,6 +8783,15 @@ const generateChapterContentWithDialog = async () => {
   overflow: hidden;
 }
 
+.worldview-description-truncated {
+  cursor: help;
+  transition: color 0.2s ease;
+}
+
+.worldview-description-truncated:hover {
+  color: #303133;
+}
+
 .worldview-meta {
   display: flex;
   align-items: center;
@@ -7124,6 +8858,15 @@ const generateChapterContentWithDialog = async () => {
   color: #606266;
 }
 
+.corpus-preview-truncated {
+  cursor: help;
+  transition: color 0.2s ease;
+}
+
+.corpus-preview-truncated:hover {
+  color: #303133;
+}
+
 .corpus-actions {
   display: flex;
   gap: 4px;
@@ -7163,10 +8906,242 @@ const generateChapterContentWithDialog = async () => {
   flex: 1;
 }
 
+.event-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
 .event-content h4 {
-  margin: 0 0 4px 0;
+  margin: 0;
   font-size: 14px;
   color: #303133;
+}
+
+.event-actions {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.event-item:hover .event-actions {
+  opacity: 1;
+}
+
+/* 章节状态下拉菜单样式 */
+.chapter-status-dropdown .el-select-dropdown__item {
+  padding: 6px 16px;
+  font-size: 12px;
+}
+
+.chapter-status-dropdown .el-select-dropdown__item.selected {
+  font-weight: 600;
+}
+
+/* 章节元信息样式优化 */
+.chapter-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chapter-meta .el-select {
+  min-width: 70px;
+}
+
+.chapter-meta .el-select .el-input__wrapper {
+  padding: 0 8px;
+  height: 24px;
+  font-size: 12px;
+}
+
+/* 新的AI优化对话框样式 */
+.new-optimize-container {
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.optimize-config-card,
+.optimize-result-card {
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+}
+
+.optimize-config-card .el-card__body,
+.optimize-result-card .el-card__body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.prompt-selection {
+  margin-bottom: 20px;
+}
+
+.prompt-selection h4 {
+  margin: 0 0 12px 0;
+  color: #303133;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.prompt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prompt-item {
+  padding: 12px;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.prompt-item:hover {
+  border-color: #409eff;
+  background-color: #f0f9ff;
+}
+
+.prompt-item.active {
+  border-color: #409eff;
+  background-color: #ecf5ff;
+  box-shadow: 0 0 0 1px #409eff;
+}
+
+.prompt-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 4px;
+}
+
+.prompt-desc {
+  font-size: 11px;
+  color: #606266;
+  line-height: 1.4;
+}
+
+.custom-prompt {
+  margin-bottom: 20px;
+}
+
+.custom-prompt h4 {
+  margin: 0 0 12px 0;
+  color: #303133;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.original-content-preview {
+  margin-bottom: 20px;
+}
+
+.original-content-preview h4 {
+  margin: 0 0 12px 0;
+  color: #303133;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.content-preview {
+  padding: 12px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  font-size: 12px;
+  color: #606266;
+  line-height: 1.5;
+  max-height: 120px;
+  overflow-y: auto;
+  word-wrap: break-word;
+}
+
+.content-stats {
+  margin-top: 8px;
+  font-size: 11px;
+  color: #909399;
+}
+
+.streaming-area {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.streaming-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e4e7ed;
+}
+
+.streaming-status {
+  color: #409eff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.streaming-content-box {
+  flex: 1;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  padding: 16px;
+  overflow-y: auto;
+  min-height: 300px;
+}
+
+.streaming-text {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #303133;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.result-area {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-content {
+  flex: 1;
+  background-color: #ffffff;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.8;
+  color: #303133;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  min-height: 300px;
+}
+
+.result-stats {
+  margin-top: 12px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #909399;
+}
+
+.empty-result {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 /* 流式生成内容样式 */
@@ -7849,6 +9824,15 @@ const generateChapterContentWithDialog = async () => {
   line-height: 1.4;
 }
 
+.event-desc-truncated {
+  cursor: help;
+  transition: color 0.2s ease;
+}
+
+.event-desc-truncated:hover {
+  color: #303133;
+}
+
 .event-meta {
   font-size: 12px;
   color: #909399;
@@ -7872,7 +9856,187 @@ const generateChapterContentWithDialog = async () => {
   margin-left: 5px;
 }
 
-.ai-toolbar {
-  margin-bottom: 10px;
+/* AI弹窗样式 */
+.ai-single-chapter-content,
+.ai-batch-chapter-content,
+.ai-optimize-content {
+  padding: 10px 0;
+}
+
+.optimize-input-card,
+.optimize-result-card {
+  height: 100%;
+}
+
+.optimized-content,
+.empty-result {
+  padding: 20px;
+  text-align: center;
+  color: #909399;
+}
+
+.optimized-content .el-textarea {
+  height: 100%;
+}
+
+.streaming-content-area {
+  margin-top: 20px;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  background-color: #fafafa;
+}
+
+.streaming-card {
+  margin: 0;
+  border: none;
+  background: transparent;
+}
+
+.streaming-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: #f5f7fa;
+  border-bottom: 1px solid #e4e7ed;
+  border-radius: 6px 6px 0 0;
+}
+
+.streaming-content {
+  padding: 16px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.streaming-text-plain {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #303133;
+  white-space: pre-wrap;
+  margin: 0;
+}
+
+.streaming-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #303133;
+  background-color: #ffffff;
+  border: 1px solid #e4e7ed;
+  border-radius: 6px;
+  padding: 12px;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  min-height: 100px;
+}
+
+/* 流式内容光标动画效果 */
+.streaming-text::after {
+  content: '▋';
+  color: #409eff;
+  animation: blink 1s infinite;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* 主编辑器流式内容区域特殊样式 */
+.editor-panel .streaming-content-area {
+  margin: 16px 0;
+  border: 2px solid #409eff;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
+}
+
+.editor-panel .streaming-card {
+  background: transparent;
+  border: none;
+}
+
+.editor-panel .streaming-header .streaming-title {
+  color: #409eff;
+  font-weight: 600;
+}
+
+/* 新续写对话框样式 */
+.new-continue-container {
+  height: 600px;
+  max-height: 80vh;
+}
+
+.continue-config-card,
+.continue-result-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.continue-config-card .el-card__body,
+.continue-result-card .el-card__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.continue-direction {
+  margin-bottom: 20px;
+}
+
+.continue-direction h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+}
+
+.continue-word-count {
+  margin-bottom: 20px;
+}
+
+.continue-word-count h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+}
+
+.word-count-tips {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.current-content-preview {
+  margin-bottom: 20px;
+}
+
+.current-content-preview h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+}
+
+.content-summary {
+  padding: 8px 12px;
+  background-color: var(--el-bg-color-page);
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--el-text-color-regular);
+  max-height: 80px;
+  overflow-y: auto;
+}
+
+/* 续写结果区域样式调整 */
+.streaming-content-box,
+.result-content {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.empty-result {
+  min-height: 300px;
 }
 </style>

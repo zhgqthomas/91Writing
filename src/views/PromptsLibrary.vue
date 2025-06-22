@@ -7,6 +7,10 @@
         <p>精选的AI写作提示词，助力您的创作</p>
       </div>
       <div class="header-actions">
+        <el-button type="success" @click="showImportDialog = true">
+          <el-icon><Upload /></el-icon>
+          导入提示词
+        </el-button>
         <el-button type="primary" @click="showAddDialog = true">
           <el-icon><Plus /></el-icon>
           添加提示词
@@ -220,6 +224,93 @@
       </template>
     </el-dialog>
 
+    <!-- 导入提示词对话框 -->
+    <el-dialog v-model="showImportDialog" title="导入提示词" width="600px">
+      <div class="import-content">
+        <el-alert 
+          title="导入说明" 
+          type="info" 
+          :closable="false"
+          style="margin-bottom: 20px;"
+        >
+          <div>
+            <p>请选择JSON文件或直接粘贴JSON内容来导入提示词</p>
+            <p><strong>支持的格式：</strong></p>
+            <ul>
+              <li>系统导出格式：<code>{"prompts": [...], "exportTime": "...", "type": "prompts"}</code></li>
+              <li>提示词数组：<code>[{"title": "标题1", ...}, {"title": "标题2", ...}]</code></li>
+              <li>单个提示词对象：<code>{"title": "标题", "category": "分类", ...}</code></li>
+            </ul>
+          </div>
+        </el-alert>
+        
+        <el-tabs v-model="importMethod" type="border-card">
+          <el-tab-pane label="文件导入" name="file">
+            <div class="file-import">
+              <el-upload
+                ref="uploadRef"
+                :auto-upload="false"
+                :show-file-list="false"
+                accept=".json"
+                :on-change="handleFileChange"
+                drag
+              >
+                <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
+                <div class="el-upload__text">
+                  将JSON文件拖到此处，或<em>点击上传</em>
+                </div>
+                <template #tip>
+                  <div class="el-upload__tip">
+                    只能上传JSON文件
+                  </div>
+                </template>
+              </el-upload>
+            </div>
+          </el-tab-pane>
+          
+          <el-tab-pane label="文本导入" name="text">
+            <div class="text-import">
+              <el-input
+                v-model="importJsonText"
+                type="textarea"
+                :rows="12"
+                placeholder="请粘贴JSON格式的提示词数据..."
+              />
+            </div>
+          </el-tab-pane>
+        </el-tabs>
+        
+        <div v-if="previewPrompts.length > 0" class="preview-section">
+          <h4>预览导入的提示词 ({{ previewPrompts.length }}条)</h4>
+          <div class="preview-list">
+            <div 
+              v-for="(prompt, index) in previewPrompts" 
+              :key="index"
+              class="preview-item"
+            >
+              <div class="preview-header">
+                <span class="preview-title">{{ prompt.title }}</span>
+                <el-tag size="small">{{ getCategoryName(prompt.category) }}</el-tag>
+              </div>
+              <div class="preview-description">{{ prompt.description }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <template #footer>
+        <el-button @click="cancelImport">取消</el-button>
+        <el-button @click="parseImportData">解析数据</el-button>
+        <el-button 
+          type="primary" 
+          @click="confirmImport"
+          :disabled="previewPrompts.length === 0"
+        >
+          确认导入 ({{ previewPrompts.length }}条)
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 使用提示词对话框 -->
     <el-dialog v-model="showUseDialog" title="使用提示词" width="700px">
       <div class="use-prompt-content">
@@ -264,7 +355,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Plus, Search, MoreFilled, Position, Edit, CopyDocument, 
-  Delete, View 
+  Delete, View, Upload, UploadFilled
 } from '@element-plus/icons-vue'
 
 // 响应式数据
@@ -272,10 +363,17 @@ const activeCategory = ref('all')
 const searchKeyword = ref('')
 const showAddDialog = ref(false)
 const showUseDialog = ref(false)
+const showImportDialog = ref(false)
 const editingPrompt = ref(null)
 const selectedPrompt = ref(null)
 const tagInput = ref('')
 const formRef = ref()
+const uploadRef = ref()
+
+// 导入相关数据
+const importMethod = ref('file')
+const importJsonText = ref('')
+const previewPrompts = ref([])
 
 // 分类定义
 const categories = ref([
@@ -287,7 +385,7 @@ const categories = ref([
   { key: 'content-action', name: '动作情节', icon: '⚡' },
   { key: 'content-psychology', name: '心理描写', icon: '🧠' },
   { key: 'continue', name: '智能续写', icon: '➡️' },
-  { key: 'polish', name: '润色', icon: '✨' },
+  { key: 'polish', name: '润色优化', icon: '✨' },
   { key: 'character', name: '人设生成', icon: '👤' },
   { key: 'expand', name: '扩写', icon: '📈' },
   { key: 'rewrite', name: '改写', icon: '🔄' },
@@ -545,6 +643,150 @@ const applyPrompt = () => {
   // 这里可以集成到编辑器中
   ElMessage.success('提示词已应用到编辑器')
   showUseDialog.value = false
+}
+
+// 导入功能相关方法
+const getCategoryName = (categoryKey) => {
+  const category = categories.value.find(c => c.key === categoryKey)
+  return category ? category.name : '未知分类'
+}
+
+const handleFileChange = (file) => {
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    importJsonText.value = e.target.result
+    parseImportData()
+  }
+  reader.readAsText(file.raw)
+}
+
+const parseImportData = () => {
+  previewPrompts.value = []
+  
+  if (!importJsonText.value.trim()) {
+    ElMessage.warning('请输入JSON内容或选择文件')
+    return
+  }
+  
+  try {
+    const data = JSON.parse(importJsonText.value)
+    let importData = []
+    
+    // 支持不同的格式
+    if (data.prompts && Array.isArray(data.prompts)) {
+      // 系统导出格式：{"prompts": [...], "exportTime": "...", "type": "prompts"}
+      importData = data.prompts
+    } else if (Array.isArray(data)) {
+      // 纯数组格式：[{...}, {...}]
+      importData = data
+    } else if (data.title && data.category) {
+      // 单个提示词对象格式：{title: "...", category: "..."}
+      importData = [data]
+    } else {
+      throw new Error('不支持的数据格式')
+    }
+    
+    // 验证和处理每个提示词对象
+    const validPrompts = []
+    const errors = []
+    
+    importData.forEach((item, index) => {
+      const validation = validatePromptItem(item, index)
+      if (validation.valid) {
+        validPrompts.push(validation.prompt)
+      } else {
+        errors.push(validation.error)
+      }
+    })
+    
+    if (errors.length > 0) {
+      ElMessage.error(`发现 ${errors.length} 个错误：\n${errors.join('\n')}`)
+    }
+    
+    if (validPrompts.length > 0) {
+      previewPrompts.value = validPrompts
+      
+      // 检测是否为系统导出格式
+      const isSystemExport = data.prompts && data.exportTime && data.type === 'prompts'
+      if (isSystemExport) {
+        const exportTime = new Date(data.exportTime).toLocaleString()
+        ElMessage.success(`成功解析系统导出文件（导出时间：${exportTime}），共 ${validPrompts.length} 个提示词`)
+      } else {
+        ElMessage.success(`成功解析 ${validPrompts.length} 个提示词`)
+      }
+    } else {
+      ElMessage.error('没有找到有效的提示词数据')
+    }
+    
+  } catch (error) {
+    ElMessage.error('JSON格式错误：' + error.message)
+  }
+}
+
+const validatePromptItem = (item, index) => {
+  const requiredFields = ['title', 'category', 'description', 'content']
+  const missing = requiredFields.filter(field => !item[field])
+  
+  if (missing.length > 0) {
+    return {
+      valid: false,
+      error: `第${index + 1}项缺少必需字段：${missing.join(', ')}`
+    }
+  }
+  
+  // 验证分类是否有效
+  const validCategories = categories.value.map(c => c.key).filter(k => k !== 'all')
+  if (!validCategories.includes(item.category)) {
+    return {
+      valid: false,
+      error: `第${index + 1}项分类"${item.category}"无效，请使用：${validCategories.join(', ')}`
+    }
+  }
+  
+  // 构造标准的提示词对象
+  const prompt = {
+    id: Date.now() + Math.random(), // 临时ID，导入时会重新生成
+    title: item.title.trim(),
+    category: item.category,
+    description: item.description.trim(),
+    content: item.content.trim(),
+    tags: Array.isArray(item.tags) ? item.tags : [],
+    usageCount: parseInt(item.usageCount) || 0,
+    isDefault: false
+  }
+  
+  return { valid: true, prompt }
+}
+
+const confirmImport = () => {
+  if (previewPrompts.value.length === 0) {
+    ElMessage.warning('没有可导入的提示词')
+    return
+  }
+  
+  // 重新生成ID避免冲突
+  const newPrompts = previewPrompts.value.map(prompt => ({
+    ...prompt,
+    id: Date.now() + Math.random()
+  }))
+  
+  // 添加到现有提示词列表
+  prompts.value.push(...newPrompts)
+  
+  // 保存到本地存储
+  savePrompts()
+  
+  ElMessage.success(`成功导入 ${newPrompts.length} 个提示词`)
+  
+  // 重置导入状态
+  cancelImport()
+}
+
+const cancelImport = () => {
+  showImportDialog.value = false
+  importJsonText.value = ''
+  previewPrompts.value = []
+  importMethod.value = 'file'
 }
 
 // 生命周期
@@ -1421,5 +1663,111 @@ const savePrompts = () => {
   .category-tabs {
     justify-content: center;
   }
+}
+
+/* 导入功能样式 */
+.import-content {
+  padding: 10px 0;
+}
+
+.import-content .el-alert :deep(.el-alert__description) {
+  line-height: 1.6;
+}
+
+.import-content .el-alert ul {
+  margin: 10px 0 0 0;
+  padding-left: 20px;
+}
+
+.import-content .el-alert li {
+  margin: 5px 0;
+}
+
+.import-content code {
+  background: #f1f2f6;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.file-import {
+  min-height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.text-import {
+  padding: 20px;
+}
+
+.preview-section {
+  margin-top: 20px;
+  border-top: 1px solid #ebeef5;
+  padding-top: 20px;
+}
+
+.preview-section h4 {
+  margin: 0 0 15px 0;
+  color: #303133;
+  font-size: 16px;
+}
+
+.preview-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+}
+
+.preview-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f5f7fa;
+  transition: background-color 0.2s;
+}
+
+.preview-item:last-child {
+  border-bottom: none;
+}
+
+.preview-item:hover {
+  background-color: #f8f9fa;
+}
+
+.preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 5px;
+}
+
+.preview-title {
+  font-weight: 500;
+  color: #303133;
+  flex: 1;
+  margin-right: 10px;
+}
+
+.preview-description {
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.el-tabs--border-card :deep(.el-tabs__content) {
+  padding: 20px;
+}
+
+.el-upload--text {
+  width: 100%;
+}
+
+.el-upload-dragger {
+  width: 100%;
 }
 </style>

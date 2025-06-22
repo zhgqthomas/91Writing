@@ -1,12 +1,5 @@
 <template>
   <div class="settings-page">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-content">
-        <h1>⚙️ 系统设置</h1>
-        <p>管理您的91写作应用配置和偏好设置</p>
-      </div>
-    </div>
 
     <!-- 设置内容 -->
     <div class="settings-content">
@@ -151,39 +144,131 @@
                   <h1>📚 91写作</h1>
                 </div>
                 <div class="app-details">
-                  <p><strong>版本：</strong>v0.2.0</p>
-                  <p><strong>更新时间：</strong>2024年2月</p>
+                  <p><strong>版本：</strong>v0.4.0</p>
+                  <p><strong>更新时间：</strong>2025年6月22日</p>
                   <p><strong>开发者：</strong>91写作团队</p>
-                  <p><strong>描述：</strong>基于AI技术的智能小说创作辅助工具</p>
+                  <p><strong>描述：</strong>基于AI技术的智能小说创作辅助工具，提供全方位的写作支持和创作灵感</p>
                 </div>
               </div>
               
               <el-divider />
               
               <div class="features-list">
-                <h3>主要功能</h3>
-                <ul>
-                  <li>🤖 AI辅助写作</li>
-                  <li>📖 小说管理</li>
-                  <li>📝 章节管理</li>
-                  <li>💡 提示词库</li>
-                  <li>🎯 写作目标</li>
-                  <li>💰 Token计费</li>
-                  <li>⚙️ 个性化设置</li>
-                </ul>
+                <h3>🌟 主要功能</h3>
+                <div class="features-grid">
+                  <div class="feature-category">
+                    <h4>📖 小说管理</h4>
+                    <ul>
+                      <li>• 多小说项目管理</li>
+                      <li>• 小说类型与标签</li>
+                      <li>• 详细作品信息</li>
+                      <li>• 数据统计分析</li>
+                    </ul>
+                  </div>
+                  
+                  <div class="feature-category">
+                    <h4>✍️ 智能编辑</h4>
+                    <ul>
+                      <li>• 章节状态管理</li>
+                      <li>• 事件时间线</li>
+                      <li>• AI内容润色</li>
+                      <li>• AI智能续写</li>
+                      <li>• 流式生成体验</li>
+                    </ul>
+                  </div>
+                  
+                  <div class="feature-category">
+                    <h4>🤖 AI辅助</h4>
+                    <ul>
+                      <li>• 章节大纲生成</li>
+                      <li>• 正文内容生成</li>
+                      <li>• 人物角色生成</li>
+                      <li>• 世界观设定生成</li>
+                      <li>• 多种生成类型</li>
+                    </ul>
+                  </div>
+                  
+                  <div class="feature-category">
+                    <h4>💡 创作工具</h4>
+                    <ul>
+                      <li>• 丰富提示词库</li>
+                      <li>• 人物设定管理</li>
+                      <li>• 世界观设定</li>
+                      <li>• 语料库管理</li>
+                      <li>• 写作目标设定</li>
+                    </ul>
+                  </div>
+                  
+                  <div class="feature-category">
+                    <h4>⚙️ 系统功能</h4>
+                    <ul>
+                      <li>• 多AI模型支持</li>
+                      <li>• API配置管理</li>
+                      <li>• 数据备份恢复</li>
+                      <li>• 短篇小说生成</li>
+                      <li>• 书籍分析工具</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
               
               <el-divider />
               
               <div class="update-log">
-                <h3>更新日志</h3>
+                <h3>📋 更新日志</h3>
+                
+                <div class="log-item current-version">
+                  <h4>v0.4.0 (2025-01-15) - 当前版本</h4>
+                  <div class="log-category">
+                    <h5>🆕 新增功能</h5>
+                    <ul>
+                      <li>• 全新AI续写功能，支持自定义续写方向和字数</li>
+                      <li>• AI内容润色功能，支持选择内容润色和整文润色</li>
+                      <li>• 章节状态管理系统（草稿/完成/发表）</li>
+                      <li>• 事件时间线编辑和删除功能</li>
+                      <li>• 流式输出体验，实时查看AI生成过程</li>
+                    </ul>
+                  </div>
+                  
+                  <div class="log-category">
+                    <h5>🔧 功能优化</h5>
+                    <ul>
+                      <li>• 进入编辑模块自动选中第一章节</li>
+                      <li>• 提示词库润色分类重命名为"润色优化"</li>
+                      <li>• 优化续写配置显示完整内容而非概要</li>
+                      <li>• 移除章节列表中的AI优化选项</li>
+                      <li>• 续写字数上限提升至5000字</li>
+                    </ul>
+                  </div>
+                  
+                  <div class="log-category">
+                    <h5>🛠️ 修复改进</h5>
+                    <ul>
+                      <li>• 修复续写弹窗样式布局问题</li>
+                      <li>• 修复编译错误和运行时错误</li>
+                      <li>• 优化提示词选择功能</li>
+                      <li>• 改善用户交互体验</li>
+                    </ul>
+                  </div>
+                </div>
+                
+                <div class="log-item">
+                  <h4>v0.3.0 (2024-12-01)</h4>
+                  <ul>
+                    <li>• 新增短篇小说生成功能</li>
+                    <li>• 新增书籍分析工具</li>
+                    <li>• 优化AI生成流程</li>
+                    <li>• 增强用户界面交互</li>
+                  </ul>
+                </div>
+                
                 <div class="log-item">
                   <h4>v0.2.0 (2024-02-15)</h4>
                   <ul>
-                    <li>重构为模块化架构</li>
-                    <li>新增系统设置页面</li>
-                    <li>优化用户界面</li>
-                    <li>增强数据管理功能</li>
+                    <li>• 重构为模块化架构</li>
+                    <li>• 新增系统设置页面</li>
+                    <li>• 优化用户界面</li>
+                    <li>• 增强数据管理功能</li>
                   </ul>
                 </div>
               </div>
@@ -282,7 +367,7 @@ const exportAllData = () => {
       tokenUsage: JSON.parse(localStorage.getItem('token-usage') || '{}')
     },
     exportTime: new Date().toISOString(),
-    version: 'v0.2.0'
+    version: 'v0.4.0'
   }
   
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
@@ -524,22 +609,6 @@ onMounted(() => {
   padding: 0;
 }
 
-.page-header {
-  margin-bottom: 20px;
-}
-
-.header-content h1 {
-  margin: 0 0 5px 0;
-  font-size: 24px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.header-content p {
-  margin: 0;
-  color: #606266;
-  font-size: 14px;
-}
 
 .settings-content {
   background: white;
@@ -654,6 +723,42 @@ onMounted(() => {
   color: #303133;
 }
 
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 20px;
+  margin-top: 15px;
+}
+
+.feature-category {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.feature-category h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #409eff;
+  border-bottom: 2px solid #409eff;
+  padding-bottom: 8px;
+}
+
+.feature-category ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-category li {
+  margin: 6px 0;
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .features-list ul {
   margin: 0;
   padding-left: 20px;
@@ -666,13 +771,35 @@ onMounted(() => {
 
 .log-item {
   margin-bottom: 20px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  padding: 15px;
+}
+
+.log-item.current-version {
+  background: linear-gradient(135deg, #e3f2fd 0%, #f0f8ff 100%);
+  border: 2px solid #409eff;
 }
 
 .log-item h4 {
-  margin: 0 0 10px 0;
-  font-size: 14px;
+  margin: 0 0 15px 0;
+  font-size: 15px;
   font-weight: 600;
   color: #409eff;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #409eff;
+}
+
+.log-category {
+  margin-bottom: 15px;
+}
+
+.log-category h5 {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #67c23a;
 }
 
 .import-options {

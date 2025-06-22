@@ -1159,14 +1159,19 @@ const generateEditDescription = async () => {
 
 请直接输出简介内容，不要包含其他解释文字：`
 
-    // 调用AI API生成简介
-    const generatedDescription = await apiService.generateText(prompt, {
-      maxTokens: 300,
-      temperature: 0.8
+    // 调用AI API流式生成简介
+    const generatedDescription = await apiService.generateTextStream(prompt, {
+      maxTokens: null, // 移除token限制
+      temperature: 0.8,
+      type: 'synopsis'
+    }, (chunk, fullContent) => {
+      // 实时更新简介内容
+      console.log('编辑简介生成流式回调 - chunk:', chunk, 'fullContent长度:', fullContent.length)
+      editForm.value.description = fullContent
     })
     
     if (generatedDescription && generatedDescription.trim()) {
-      editForm.value.description = generatedDescription.trim()
+      // 流式调用已经在回调中更新了内容，这里只需要显示成功消息
       ElMessage.success('AI简介生成成功！您可以根据需要进行修改')
     } else {
       throw new Error('AI返回的内容为空')
@@ -1263,14 +1268,19 @@ const generateDescription = async () => {
 
     console.log('开始AI生成简介，提示词:', prompt)
     
-    // 调用AI API生成简介
-    const generatedDescription = await apiService.generateText(prompt, {
-      maxTokens: 300,
-      temperature: 0.8
+    // 调用AI API流式生成简介
+    const generatedDescription = await apiService.generateTextStream(prompt, {
+      maxTokens: null, // 移除token限制
+      temperature: 0.8,
+      type: 'synopsis'
+    }, (chunk, fullContent) => {
+      // 实时更新简介内容
+      console.log('简介生成流式回调 - chunk:', chunk, 'fullContent长度:', fullContent.length)
+      createForm.value.description = fullContent
     })
     
     if (generatedDescription && generatedDescription.trim()) {
-      createForm.value.description = generatedDescription.trim()
+      // 流式调用已经在回调中更新了内容，这里只需要显示成功消息
       ElMessage.success('AI简介生成成功！您可以根据需要进行修改')
     } else {
       throw new Error('AI返回的内容为空')

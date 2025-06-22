@@ -75,13 +75,24 @@
         </el-form-item>
         
         <el-form-item label="最大Token">
-          <el-input-number
-            v-model="configForm.maxTokens"
-            :min="100"
-            :max="4000"
-            :step="100"
-            controls-position="right"
-          />
+          <div class="max-tokens-control">
+            <el-checkbox 
+              v-model="configForm.unlimitedTokens" 
+              @change="handleUnlimitedTokensChange"
+              style="margin-bottom: 8px;"
+            >
+              无限制
+            </el-checkbox>
+            <el-input-number
+              v-model="configForm.maxTokens"
+              :min="100"
+              :max="10000000"
+              :step="1000"
+              :disabled="configForm.unlimitedTokens"
+              controls-position="right"
+              placeholder="无限制"
+            />
+          </div>
         </el-form-item>
         
         <el-form-item label="创造性">
@@ -113,7 +124,7 @@
         <ul>
           <li><strong>模型选择：</strong>推荐使用gemini2.5pro、claude3.7/4</li>
           <li><strong>国产模型：</strong>国产模型推荐使用阿里百炼API速度比较快</li>
-          <li><strong>最佳模型：</strong><span style="color: red;">gemini、claude中转可以联系作者微信1090879115</span></li>
+          <li><strong>最佳模型：</strong><span style="color: red;">gemini、claude中转购买地址：<a href="https://item.taobao.com/item.htm?ft=t&id=938261705242" target="_blank">https://item.taobao.com/item.htm?ft=t&id=938261705242</a></span></li>
           <li><strong>最大Token：</strong>控制生成内容的长度</li>
           <li><strong>创造性：</strong>0表示更准确，1表示更有创意</li>
         </ul>
@@ -137,25 +148,36 @@ const configForm = reactive({
   apiKey: '',
   baseURL: 'https://api.openai.com/v1',
   selectedModel: 'gpt-3.5-turbo',
-  maxTokens: 2000,
+  maxTokens: 2000000, // 默认最大Token数
+  unlimitedTokens: false, // 默认不无限制
   temperature: 0.7
 })
 
 const defaultModels = [
   {
-    id: 'gpt-3.5-turbo',
-    name: 'GPT-3.5 Turbo',
-    description: '快速且经济'
+    id: 'deepseek-r1',
+    name: 'deepseek-r1',
+    description: 'deepseek-r1'
   },
   {
-    id: 'gpt-4',
-    name: 'GPT-4',
-    description: '更强大的模型'
+    id: 'deepseek-v3',
+    name: 'deepseek-v3',
+    description: 'deepseek-v3'
   },
   {
-    id: 'gpt-4-turbo',
-    name: 'GPT-4 Turbo',
-    description: '最新版本'
+    id: 'claude-3.7-sonnet',
+    name: 'claude-3.7-sonnet',
+    description: 'claude-3.7-sonnet'
+  },
+  {
+    id: 'claude-4-sonnet',
+    name: 'claude-4-sonnet',
+    description: 'claude-4-sonnet'
+  },
+  {
+    id: 'gemini-2.5-pro-preview-05-06',
+    name: 'gemini-2.5-pro-preview-05-06',
+    description: 'gemini-2.5-pro-preview-05-06'
   }
 ]
 
@@ -169,6 +191,15 @@ const formatTemperature = (value) => {
   if (value <= 0.3) return '保守'
   if (value <= 0.7) return '平衡'
   return '创新'
+}
+
+// 处理无限制Token选项
+const handleUnlimitedTokensChange = () => {
+  if (configForm.unlimitedTokens) {
+    configForm.maxTokens = null
+  } else {
+    configForm.maxTokens = 2000000 // 恢复到用户设定的默认值
+  }
 }
 
 const addCustomModel = () => {
@@ -282,7 +313,8 @@ const resetConfig = () => {
     apiKey: '',
     baseURL: 'https://api.openai.com/v1',
     selectedModel: 'gpt-3.5-turbo',
-    maxTokens: 2000,
+    maxTokens: 2000000, // 默认最大Token数
+    unlimitedTokens: false, // 默认不无限制
     temperature: 0.7
   })
   localStorage.removeItem('apiConfig')
@@ -295,6 +327,10 @@ const loadSavedConfig = () => {
   if (saved) {
     try {
       const config = JSON.parse(saved)
+      // 为现有配置添加unlimitedTokens字段
+      if (config.unlimitedTokens === undefined) {
+        config.unlimitedTokens = config.maxTokens === null
+      }
       Object.assign(configForm, config)
       store.updateApiConfig(config)
     } catch (error) {
@@ -354,5 +390,11 @@ onMounted(() => {
 
 :deep(.el-slider__runway) {
   margin: 16px 0;
+}
+
+.max-tokens-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>

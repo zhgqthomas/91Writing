@@ -1,5 +1,6 @@
 import apiConfig from '../config/api.json'
 import billingService from './billing.js'
+import { ElMessage } from 'element-plus'
 
 class APIService {
   constructor() {
@@ -155,6 +156,15 @@ class APIService {
     // 估算输入token数量（用于记录，无需检查余额）
     const estimatedInputTokens = billingService.estimateTokens(prompt)
     
+    // 移除maxTokens限制，允许无限制生成
+    const maxTokens = options.maxTokens || this.config.maxTokens || null
+    
+    console.log('maxTokens配置检查:', {
+      'options.maxTokens': options.maxTokens,
+      'this.config.maxTokens': this.config.maxTokens,
+      '最终使用的maxTokens': maxTokens
+    })
+    
     const requestBody = {
       model: model,
       messages: [
@@ -163,7 +173,7 @@ class APIService {
           content: prompt
         }
       ],
-      max_tokens: options.maxTokens || this.config.maxTokens,
+      max_tokens: maxTokens || undefined, // 如果为null则不设置限制
       temperature: options.temperature || this.config.temperature,
       stream: true
     }
@@ -180,35 +190,82 @@ class APIService {
       const response = await fetch(url, {
         method: 'POST',
         headers,
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(requestBody),
+        // 增加超时设置，避免长时间等待导致的截断
+        signal: AbortSignal.timeout(300000) // 5分钟超时，给更多时间生成长内容
       })
       
       console.log('API响应状态:', response.status) // 调试日志
 
       if (!response.ok) {
-        const errorData = await response.json()
+        const errorText = await response.text()
         hasError = true
-        throw new Error(`API请求失败: ${response.status} - ${errorData.error?.message || '未知错误'}`)
+        console.error('API错误响应:', errorText)
+        try {
+          const errorData = JSON.parse(errorText)
+          throw new Error(`API请求失败: ${response.status} - ${errorData.error?.message || '未知错误'}`)
+        } catch (parseError) {
+          throw new Error(`API请求失败: ${response.status} - ${errorText}`)
+        }
       }
 
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
 
+      let streamFinished = false
+      let buffer = '' // 用于处理分片数据
+      let processedChunks = 0 // 统计处理的chunk数量
+      let lastProgressTime = Date.now() // 记录最后一次接收数据的时间
+      let noDataTimeout = null // 无数据超时检查
+      
+      // 设置无数据超时检查（30秒没有新数据则认为可能有问题）
+      const resetNoDataTimeout = () => {
+        if (noDataTimeout) {
+          clearTimeout(noDataTimeout)
+        }
+        noDataTimeout = setTimeout(() => {
+          console.log('警告：30秒内没有接收到新数据，但流未结束')
+          // 不直接结束，继续等待，但记录警告
+        }, 30000)
+      }
+      
+      resetNoDataTimeout()
+      
       try {
-        while (true) {
+        while (!streamFinished) {
           const { done, value } = await reader.read()
-          if (done) break
+          
+          if (done) {
+            console.log('读取完成，处理了', processedChunks, '个chunks，总内容长度:', fullContent.length)
+            if (noDataTimeout) {
+              clearTimeout(noDataTimeout)
+            }
+            break
+          }
 
           const chunk = decoder.decode(value, { stream: true })
-          const lines = chunk.split('\n')
+          console.log('接收到原始chunk:', chunk.length, '字节') // 调试日志
+          
+          // 重置无数据超时
+          lastProgressTime = Date.now()
+          resetNoDataTimeout()
+          
+          // 将新的chunk添加到缓冲区
+          buffer += chunk
+          
+          // 按行分割，最后一行可能不完整，需要保留
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || '' // 保留最后一行（可能不完整）
 
           for (const line of lines) {
             const trimmedLine = line.trim()
+            
             if (trimmedLine.startsWith('data: ')) {
               const data = trimmedLine.slice(6).trim()
               
               if (data === '[DONE]') {
-                console.log('流式生成完成，总内容长度:', fullContent.length) // 调试日志
+                console.log('收到[DONE]标记，流式生成完成，总内容长度:', fullContent.length)
+                streamFinished = true
                 break
               }
               
@@ -220,26 +277,111 @@ class APIService {
               try {
                 const parsed = JSON.parse(data)
                 const content = parsed.choices?.[0]?.delta?.content || ''
+                
                 if (content) {
                   fullContent += content
-                  console.log('接收到内容片段:', content) // 调试日志
+                  processedChunks++
+                  console.log('接收到内容片段:', content.length, '字符，总长度:', fullContent.length)
+                  
                   if (onChunk) {
-                    onChunk(content, fullContent)
+                    try {
+                      onChunk(content, fullContent)
+                    } catch (chunkError) {
+                      console.error('onChunk回调错误:', chunkError)
+                    }
                   }
                 }
+                
+                // 检查是否有结束标记
+                if (parsed.choices?.[0]?.finish_reason) {
+                  console.log('检测到结束标记:', parsed.choices[0].finish_reason)
+                  streamFinished = true
+                  break
+                }
+                
+                // 检查是否有错误信息
+                if (parsed.error) {
+                  console.error('API返回错误:', parsed.error)
+                  throw new Error(`API错误: ${parsed.error.message || '未知错误'}`)
+                }
               } catch (e) {
-                console.log('解析数据失败，原始数据:', JSON.stringify(data), '错误:', e.message) // 调试日志
+                console.log('解析数据失败，原始数据长度:', data.length, '错误:', e.message)
+                // 如果是JSON解析错误，继续处理其他数据
+                // 如果是API错误，则抛出异常
+                if (e.message.startsWith('API错误:')) {
+                  throw e
+                }
                 // 继续处理其他数据，不中断流式处理
               }
             }
           }
         }
+        
+        // 处理剩余的缓冲区数据
+        if (buffer.trim() && !streamFinished) {
+          console.log('处理剩余缓冲区数据:', buffer.length, '字符')
+          const trimmedLine = buffer.trim()
+          if (trimmedLine.startsWith('data: ')) {
+            const data = trimmedLine.slice(6).trim()
+            if (data !== '[DONE]' && data !== '') {
+              try {
+                const parsed = JSON.parse(data)
+                const content = parsed.choices?.[0]?.delta?.content || ''
+                if (content) {
+                  fullContent += content
+                  console.log('缓冲区内容片段:', content.length, '字符，总长度:', fullContent.length)
+                  if (onChunk) {
+                    onChunk(content, fullContent)
+                  }
+                }
+              } catch (e) {
+                console.log('缓冲区数据解析失败:', e.message)
+              }
+            }
+          }
+        }
+        
+        console.log('流式生成最终完成，总处理chunks:', processedChunks, '最终内容长度:', fullContent.length)
+        
+        // 清理超时检查
+        if (noDataTimeout) {
+          clearTimeout(noDataTimeout)
+        }
+        
+        // 检查内容完整性
+        if (fullContent.length === 0) {
+          console.warn('警告：流式生成完成但没有获得任何内容')
+        } else if (fullContent.length < 10) {
+          console.warn('警告：生成的内容过短，可能被截断:', fullContent)
+        }
+        
       } catch (streamError) {
         console.error('流式读取错误:', streamError)
-        hasError = true
-        throw streamError
+        
+        // 清理超时检查
+        if (noDataTimeout) {
+          clearTimeout(noDataTimeout)
+        }
+        
+        // 如果是网络错误或超时，但已经有部分内容，可以考虑返回部分内容
+        if (fullContent.length > 0 && (
+          streamError.name === 'AbortError' || 
+          streamError.message.includes('timeout') ||
+          streamError.message.includes('network')
+        )) {
+          console.log('网络问题导致流式中断，但已获得部分内容:', fullContent.length, '字符')
+          ElMessage.warning('网络不稳定，已获得部分生成内容')
+          // 不抛出错误，返回已获得的内容
+        } else {
+          hasError = true
+          throw streamError
+        }
       } finally {
-        reader.releaseLock()
+        try {
+          reader.releaseLock()
+        } catch (e) {
+          console.log('释放reader锁失败:', e.message)
+        }
       }
 
       // 流式生成成功，记录token使用
@@ -256,6 +398,7 @@ class APIService {
 
       return fullContent
     } catch (error) {
+      console.error('流式生成错误:', error)
       // 只有在发生错误时才记录失败调用
       if (hasError) {
         billingService.recordAPICall({
@@ -289,7 +432,7 @@ class APIService {
 
 请直接输出大纲内容：`
 
-    return await this.generateText(prompt)
+    return await this.generateTextStream(prompt, {}, null)
   }
 
   // 流式生成小说大纲
@@ -354,7 +497,7 @@ class APIService {
 
 请直接输出章节内容：`
 
-    return await this.generateText(prompt)
+    return await this.generateTextStream(prompt, {}, null)
   }
 
   // 流式生成章节内容
@@ -468,10 +611,10 @@ class APIService {
     
     const prompt = `${lengthInstruction}，${typeInstruction}。\n\n文章内容：\n${content}`
     
-    return await this.generateText(prompt, {
-      maxTokens: 400,
+    return await this.generateTextStream(prompt, {
+      maxTokens: null, // 移除token限制
       temperature: 0.3
-    })
+    }, null)
   }
 
   // 内容优化建议
@@ -489,7 +632,7 @@ ${content}
 
 建议：`
 
-    return await this.generateText(prompt, { maxTokens: 500 })
+    return await this.generateTextStream(prompt, { maxTokens: null }, null) // 移除token限制
   }
 
   // 根据语料库生成个性化内容
@@ -509,7 +652,7 @@ ${prompt}
 
 生成内容：`
 
-    return await this.generateText(personalizedPrompt)
+    return await this.generateTextStream(personalizedPrompt, {}, null)
   }
 
   // 生成通用内容
@@ -529,7 +672,7 @@ ${prompt}
 
 请直接输出小说内容：`
 
-    return await this.generateText(prompt)
+    return await this.generateTextStream(prompt, {}, null)
   }
 
   // 流式生成通用内容
@@ -601,7 +744,7 @@ ${prompt}
 }`
 
     try {
-      const response = await this.generateText(prompt)
+      const response = await this.generateTextStream(prompt, {}, null)
       return JSON.parse(response)
     } catch (error) {
       console.error('生成人物失败:', error)
@@ -634,7 +777,7 @@ ${prompt}
 }`
 
     try {
-      const response = await this.generateText(prompt)
+      const response = await this.generateTextStream(prompt, {}, null)
       return JSON.parse(response)
     } catch (error) {
       console.error('生成世界观设定失败:', error)

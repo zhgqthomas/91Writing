@@ -203,12 +203,23 @@
                     </el-col>
                     <el-col :span="8">
                       <el-form-item label="最大Token数">
-                        <el-input-number 
-                          v-model="config.maxTokens" 
-                          :min="1" 
-                          :max="32000"
-                          :step="100"
-                        />
+                        <div class="max-tokens-control">
+                          <el-checkbox 
+                            v-model="config.unlimitedTokens" 
+                            @change="handleUnlimitedTokensChange(config)"
+                            style="margin-bottom: 8px;"
+                          >
+                            无限制
+                          </el-checkbox>
+                          <el-input-number 
+                            v-model="config.maxTokens" 
+                            :min="1" 
+                            :max="10000000"
+                            :step="1000"
+                            :disabled="config.unlimitedTokens"
+                            placeholder="无限制"
+                          />
+                        </div>
                       </el-form-item>
                     </el-col>
                     <el-col :span="8">
@@ -444,7 +455,7 @@ const presetTemplates = ref([
       apiUrl: 'api.openai.com/v1/chat/completions',
       model: 'gpt-4',
       temperature: 0.7,
-      maxTokens: 2000
+      maxTokens: null // 移除token限制
     }
   },
   {
@@ -458,7 +469,7 @@ const presetTemplates = ref([
       apiUrl: 'api.openai.com/v1/chat/completions',
       model: 'gpt-3.5-turbo',
       temperature: 0.7,
-      maxTokens: 1500
+              maxTokens: null // 移除token限制
     }
   },
   {
@@ -472,7 +483,7 @@ const presetTemplates = ref([
       apiUrl: 'api.anthropic.com/v1/messages',
       model: 'claude-3-sonnet-20240229',
       temperature: 0.7,
-      maxTokens: 2000
+      maxTokens: null // 移除token限制
     }
   },
   {
@@ -486,7 +497,7 @@ const presetTemplates = ref([
       apiUrl: 'aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions',
       model: 'ERNIE-Bot-4',
       temperature: 0.7,
-      maxTokens: 2000
+      maxTokens: null // 移除token限制
     }
   },
   {
@@ -500,7 +511,7 @@ const presetTemplates = ref([
       apiUrl: 'dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation',
       model: 'qwen-max',
       temperature: 0.7,
-      maxTokens: 2000
+      maxTokens: null // 移除token限制
     }
   },
   {
@@ -514,7 +525,7 @@ const presetTemplates = ref([
       apiUrl: 'open.bigmodel.cn/api/paas/v4/chat/completions',
       model: 'glm-4',
       temperature: 0.7,
-      maxTokens: 2000
+      maxTokens: null // 移除token限制
     }
   }
 ])
@@ -579,7 +590,8 @@ const addNewConfig = () => {
     apiKey: '',
     model: '',
     temperature: 0.7,
-    maxTokens: 2000,
+    maxTokens: 2000000, // 默认最大Token数
+    unlimitedTokens: false, // 默认不无限制
     topP: 1.0,
     frequencyPenalty: 0.0,
     presencePenalty: 0.0,
@@ -681,7 +693,7 @@ const resetConfig = (config) => {
     // 重置为默认值
     Object.assign(config, {
       temperature: 0.7,
-      maxTokens: 2000,
+      maxTokens: null, // 移除token限制
       topP: 1.0,
       frequencyPenalty: 0.0,
       presencePenalty: 0.0,
@@ -694,6 +706,15 @@ const resetConfig = (config) => {
     
     ElMessage.success('配置已重置')
   })
+}
+
+// 处理无限制Token选项
+const handleUnlimitedTokensChange = (config) => {
+  if (config.unlimitedTokens) {
+    config.maxTokens = null
+  } else {
+    config.maxTokens = 2000000 // 恢复到用户设定的默认值
+  }
 }
 
 const duplicateConfig = (config) => {
@@ -756,6 +777,7 @@ const applyTemplate = (template) => {
       name: template.name,
       description: template.description,
       ...template.config,
+      unlimitedTokens: template.config.maxTokens === null, // 根据maxTokens设置unlimitedTokens
       topP: 1.0,
       frequencyPenalty: 0.0,
       presencePenalty: 0.0,
@@ -855,7 +877,8 @@ const resetAllConfigs = () => {
         apiKey: '',
         model: 'gpt-4',
         temperature: 0.7,
-        maxTokens: 2000,
+        maxTokens: null, // 移除token限制
+        unlimitedTokens: true, // 默认无限制
         topP: 1.0,
         frequencyPenalty: 0.0,
         presencePenalty: 0.0,
@@ -881,7 +904,12 @@ onMounted(() => {
   const savedConfigs = localStorage.getItem('aiApiConfigs')
   if (savedConfigs) {
     try {
-      apiConfigs.value = JSON.parse(savedConfigs)
+      const configs = JSON.parse(savedConfigs)
+      // 为现有配置添加unlimitedTokens字段
+      apiConfigs.value = configs.map(config => ({
+        ...config,
+        unlimitedTokens: config.unlimitedTokens !== undefined ? config.unlimitedTokens : (config.maxTokens === null)
+      }))
       if (apiConfigs.value.length > 0) {
         activeTab.value = apiConfigs.value[0].id
       }
@@ -1028,6 +1056,12 @@ onMounted(() => {
   justify-content: flex-end;
   padding-top: 20px;
   border-top: 1px solid #ebeef5;
+}
+
+.max-tokens-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .preset-templates {
