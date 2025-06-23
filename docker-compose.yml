@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # 开发环境
   app-dev:

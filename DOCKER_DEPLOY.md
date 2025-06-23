@@ -63,8 +63,61 @@ docker run -d -p 80:80 --name 91writing-prod 91writing:prod
 
 ## 故障排查
 
+### 快速诊断工具
+
+```bash
+# Windows
+scripts\debug.bat
+
+# Linux/Mac
+chmod +x scripts/debug.sh
+./scripts/debug.sh
+```
+
+### 查看错误日志
+
+```bash
+# 查看构建过程错误
+docker-compose build --no-cache
+
+# 查看容器启动日志
+docker-compose logs
+
+# 实时跟踪日志
+docker-compose logs -f
+
+# 前台启动查看详细输出
+docker-compose --profile dev up
+```
+
 ### 常见问题
 
-1. 端口被占用 - 修改 docker-compose.yml 中的端口映射
-2. 构建失败 - 使用 docker builder prune 清理缓存
-3. 容器无法启动 - 查看 docker-compose logs 获取错误信息 
+1. **端口被占用**
+   ```bash
+   # 检查端口占用
+   netstat -tulpn | grep :3000
+   # 修改 docker-compose.yml 中的端口映射
+   ```
+
+2. **构建失败**
+   ```bash
+   # 清理构建缓存
+   docker builder prune
+   # 重新构建
+   docker-compose build --no-cache
+   ```
+
+3. **容器无法启动**
+   ```bash
+   # 查看详细错误信息
+   docker-compose logs
+   # 检查容器状态
+   docker-compose ps
+   ```
+
+4. **权限问题（Linux）**
+   ```bash
+   # 将用户添加到docker组
+   sudo usermod -aG docker $USER
+   newgrp docker
+   ``` 
