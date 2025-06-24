@@ -422,7 +422,7 @@ pnpm build
 
 **🌟 如果这个项目对您有帮助，请给个Star支持一下！**
 
-[![Star History Chart](https://api.star-history.com/svg?repos=your-username/91-writer&type=Date)](https://star-history.com/#your-username/91-writer&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=ponysb/91Writing&type=Date)](https://star-history.com/#ponysb/91Writing&Date)
 
 </div>
 
