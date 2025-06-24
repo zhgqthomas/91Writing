@@ -7,6 +7,14 @@
         <p>查看和管理您的小说作品</p>
       </div>
       <div class="header-actions">
+        <el-button 
+          v-if="novels.length > 0" 
+          @click="exportAllNovels"
+          :disabled="filteredNovels.length === 0"
+        >
+          <el-icon><Download /></el-icon>
+          导出列表
+        </el-button>
         <el-button type="primary" @click="showCreateDialog = true">
           <el-icon><Plus /></el-icon>
           创建新小说
@@ -143,10 +151,6 @@
                   <el-dropdown-item @click="duplicateNovel(novel)">
                     <el-icon><CopyDocument /></el-icon>
                     复制
-                  </el-dropdown-item>
-                  <el-dropdown-item @click="archiveNovel(novel)">
-                    <el-icon><Box /></el-icon>
-                    归档
                   </el-dropdown-item>
                   <el-dropdown-item divided @click="deleteNovel(novel)">
                     <el-icon><Delete /></el-icon>
@@ -536,11 +540,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ElMessage, ElMessageBox, ElNotification } from 'element-plus'
 import { 
   Plus, Search, Document, EditPen, Calendar, Edit, View, 
-  MoreFilled, Download, CopyDocument, Box, Delete, Star 
+  MoreFilled, Star, Download, CopyDocument, Delete, Close
 } from '@element-plus/icons-vue'
 import { useRouter } from 'vue-router'
 import apiService from '@/services/api.js'
@@ -850,7 +854,238 @@ const viewNovelDetails = (novel) => {
 }
 
 const exportNovel = (novel) => {
-  ElMessage.success(`正在导出《${novel.title}》...`)
+  try {
+    // 简化的HTML清理函数
+    const cleanHtml = (htmlString) => {
+      if (!htmlString) return ''
+      return htmlString
+        .replace(/<br\s*\/?>/gi, '\n')  // br标签转换为换行
+        .replace(/<\/p>/gi, '\n\n')     // p结束标签转换为双换行
+        .replace(/<[^>]*>/g, '')        // 移除所有HTML标签
+        .replace(/&nbsp;/g, ' ')        // HTML空格转换为普通空格
+        .replace(/&lt;/g, '<')          // HTML实体转换
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/\n\s*\n\s*\n+/g, '\n\n') // 清理多余换行
+        .trim()
+    }
+    
+    // 构建导出内容
+    let exportContent = `《${novel.title}》\n`
+    exportContent += `${'='.repeat(50)}\n\n`
+    
+    // 基本信息
+    exportContent += `📚 小说信息\n`
+    exportContent += `标题：${novel.title}\n`
+    exportContent += `作者：${novel.author || '未设置'}\n`
+    exportContent += `类型：${getGenreDisplayName(novel.genre)}\n`
+    exportContent += `状态：${getStatusText(novel.status)}\n`
+    exportContent += `字数：${formatNumber(novel.wordCount || 0)}字\n`
+    exportContent += `章节：${novel.chapters || 0}章\n`
+    exportContent += `创建时间：${formatDate(novel.createdAt)}\n`
+    exportContent += `更新时间：${formatDate(novel.updatedAt)}\n`
+    
+    if (novel.tags && novel.tags.length > 0) {
+      exportContent += `标签：${novel.tags.join('、')}\n`
+    }
+    
+    if (novel.description) {
+      exportContent += `\n📖 简介\n`
+      exportContent += `${cleanHtml(novel.description)}\n`
+    }
+    
+    exportContent += `\n${'='.repeat(50)}\n\n`
+    
+    // 章节内容
+    if (novel.chapterList && novel.chapterList.length > 0) {
+      exportContent += `📝 章节内容\n\n`
+      
+      novel.chapterList.forEach((chapter, index) => {
+        exportContent += `第${index + 1}章 ${chapter.title}\n`
+        exportContent += `${'-'.repeat(30)}\n\n`
+        
+        if (chapter.description) {
+          exportContent += `【章节简介】\n${cleanHtml(chapter.description)}\n\n`
+        }
+        
+        if (chapter.content) {
+          const cleanContent = cleanHtml(chapter.content)
+          exportContent += `${cleanContent}\n\n`
+        } else {
+          exportContent += `（章节内容暂无）\n\n`
+        }
+        
+        exportContent += `字数：${chapter.wordCount || 0}字\n`
+        exportContent += `更新时间：${formatDate(chapter.updatedAt || chapter.createdAt)}\n\n`
+        exportContent += `${'='.repeat(50)}\n\n`
+      })
+    } else {
+      exportContent += `📝 章节内容\n\n`
+      exportContent += `暂无章节内容\n\n`
+    }
+    
+    // 统计信息
+    exportContent += `📊 创作统计\n`
+    exportContent += `总字数：${formatNumber(novel.totalWords || novel.wordCount || 0)}字\n`
+    exportContent += `平均章节字数：${novel.avgWordsPerChapter || 0}字\n`
+    exportContent += `创作天数：${novel.writingDays || 0}天\n`
+    
+    if (novel.writingRecords && novel.writingRecords.length > 0) {
+      exportContent += `\n📝 创作记录\n`
+      novel.writingRecords.forEach(record => {
+        exportContent += `${formatDate(record.date)}：写作${record.wordsWritten}字，用时${record.timeSpent}分钟\n`
+        if (record.note) {
+          exportContent += `备注：${cleanHtml(record.note)}\n`
+        }
+      })
+    }
+    
+    exportContent += `\n\n导出时间：${new Date().toLocaleString()}\n`
+    exportContent += `导出来源：AI小说生成器v0.5.0\n`
+    
+    // 创建并下载文件
+    const blob = new Blob([exportContent], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    
+    // 文件名处理
+    const safeTitle = novel.title.replace(/[<>:"/\\|?*]/g, '_')
+    link.download = `${safeTitle}_${new Date().toISOString().slice(0, 10)}.txt`
+    
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success(`《${novel.title}》导出成功！`)
+    
+  } catch (error) {
+    console.error('导出失败:', error)
+    ElMessage.error('导出失败，请重试')
+  }
+}
+
+// 批量导出所有小说
+const exportAllNovels = () => {
+  try {
+    if (filteredNovels.value.length === 0) {
+      ElMessage.warning('没有可导出的小说')
+      return
+    }
+    
+    // 简化的HTML清理函数
+    const cleanHtml = (htmlString) => {
+      if (!htmlString) return ''
+      return htmlString
+        .replace(/<br\s*\/?>/gi, '\n')  // br标签转换为换行
+        .replace(/<\/p>/gi, '\n\n')     // p结束标签转换为双换行
+        .replace(/<[^>]*>/g, '')        // 移除所有HTML标签
+        .replace(/&nbsp;/g, ' ')        // HTML空格转换为普通空格
+        .replace(/&lt;/g, '<')          // HTML实体转换
+        .replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/\n\s*\n\s*\n+/g, '\n\n') // 清理多余换行
+        .trim()
+    }
+    
+    // 构建导出内容
+    let exportContent = `📚 小说列表导出\n`
+    exportContent += `${'='.repeat(60)}\n\n`
+    exportContent += `导出时间：${new Date().toLocaleString()}\n`
+    exportContent += `小说数量：${filteredNovels.value.length}部\n`
+    exportContent += `导出来源：AI小说生成器v0.5.0\n\n`
+    exportContent += `${'='.repeat(60)}\n\n`
+    
+    filteredNovels.value.forEach((novel, index) => {
+      exportContent += `【第${index + 1}部】《${novel.title}》\n`
+      exportContent += `${'='.repeat(50)}\n\n`
+      
+      // 基本信息
+      exportContent += `📚 小说信息\n`
+      exportContent += `标题：${novel.title}\n`
+      exportContent += `作者：${novel.author || '未设置'}\n`
+      exportContent += `类型：${getGenreDisplayName(novel.genre)}\n`
+      exportContent += `状态：${getStatusText(novel.status)}\n`
+      exportContent += `字数：${formatNumber(novel.wordCount || 0)}字\n`
+      exportContent += `章节：${novel.chapters || 0}章\n`
+      exportContent += `创建时间：${formatDate(novel.createdAt)}\n`
+      exportContent += `更新时间：${formatDate(novel.updatedAt)}\n`
+      
+      if (novel.tags && novel.tags.length > 0) {
+        exportContent += `标签：${novel.tags.join('、')}\n`
+      }
+      
+      if (novel.description) {
+        exportContent += `\n📖 简介\n`
+        exportContent += `${cleanHtml(novel.description)}\n`
+      }
+      
+      exportContent += `\n${'='.repeat(50)}\n\n`
+      
+      // 章节概要
+      if (novel.chapterList && novel.chapterList.length > 0) {
+        exportContent += `📝 章节概要\n`
+        novel.chapterList.forEach((chapter, chapterIndex) => {
+          exportContent += `第${chapterIndex + 1}章 ${chapter.title}`
+          if (chapter.wordCount) {
+            exportContent += ` (${chapter.wordCount}字)`
+          }
+          exportContent += `\n`
+          if (chapter.description) {
+            exportContent += `  简介：${cleanHtml(chapter.description)}\n`
+          }
+        })
+        exportContent += `\n`
+      } else {
+        exportContent += `📝 章节概要\n`
+        exportContent += `暂无章节内容\n\n`
+      }
+      
+      // 统计信息
+      exportContent += `📊 创作统计\n`
+      exportContent += `总字数：${formatNumber(novel.totalWords || novel.wordCount || 0)}字\n`
+      exportContent += `平均章节字数：${novel.avgWordsPerChapter || 0}字\n`
+      exportContent += `创作天数：${novel.writingDays || 0}天\n\n`
+      
+      // 分隔符
+      if (index < filteredNovels.value.length - 1) {
+        exportContent += `\n${'#'.repeat(60)}\n\n`
+      }
+    })
+    
+    exportContent += `\n\n${'='.repeat(60)}\n`
+    exportContent += `导出完成！共导出 ${filteredNovels.value.length} 部小说\n`
+    exportContent += `感谢使用 AI小说生成器v0.5.0\n`
+    
+    // 创建并下载文件
+    const blob = new Blob([exportContent], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    
+    // 生成文件名
+    const dateStr = new Date().toISOString().slice(0, 10)
+    const statusText = statusFilter.value === 'all' ? '全部' : getStatusText(statusFilter.value)
+    const genreText = genreFilter.value === 'all' ? '全部类型' : (genrePresets.value[genreFilter.value]?.name || '未知类型')
+    
+    link.download = `小说列表_${statusText}_${genreText}_${dateStr}.txt`
+    
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success(`成功导出 ${filteredNovels.value.length} 部小说！`)
+    
+  } catch (error) {
+    console.error('批量导出失败:', error)
+    ElMessage.error('批量导出失败，请重试')
+  }
 }
 
 const duplicateNovel = (novel) => {
@@ -865,10 +1100,6 @@ const duplicateNovel = (novel) => {
   // 保存到localStorage
   saveNovels()
   ElMessage.success('小说复制成功')
-}
-
-const archiveNovel = (novel) => {
-  ElMessage.success(`《${novel.title}》已归档`)
 }
 
 const deleteNovel = async (novel) => {

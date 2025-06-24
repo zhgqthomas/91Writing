@@ -159,7 +159,7 @@ npm >= 8.0.0 或 pnpm >= 7.0.0 (推荐)
 ### 安装与运行
 ```bash
 # 克隆仓库
-git clone https://github.com/your-username/91-writer.git
+git clone https://github.com/ponysb/91Writing.git
 cd 91-writer
 
 # 安装依赖
@@ -186,8 +186,8 @@ pnpm build
 | 服务商 | 模型推荐 | 特点 |
 |--------|----------|------|
 | OpenAI | GPT-4o, GPT-4-turbo | 通用性强，创作质量高 |
-| Anthropic | Claude-3.5-Sonnet | 长文本处理，逻辑性强 |
-| Google | Gemini-2.0-pro | 多模态支持，响应速度快 |
+| Anthropic | Claude-4-Sonnet | 长文本处理，逻辑性强 |
+| Google | Gemini-2.5-pro | 多模态支持，响应速度快 |
 | DeepSeek | DeepSeek-V3 | 中文优化，性价比高 |
 
 ### 推荐配置
@@ -277,7 +277,16 @@ pnpm build
 
 ## 📈 更新日志
 
-### 🎉 **v0.4.0** (2025年6月22日) - 最新版本
+### 🔥 **v0.5.0** (2025年6月24日) - 最新版本
+#### 🚀 **上下文内容功能全面升级**
+- 模型配置预设模型重新梳理
+- 短篇小说部分API兼容问题bug修复
+- Ai上下文连贯性改为可以手动选择多章，默认自动关联前两章
+- 小说无法导出bug修复
+- 若干功能bug修复
+
+
+### 🎉 **v0.4.0** (2025年6月22日)
 #### 🆕 **智能编辑体验全面升级**
 
 **✍️ AI续写功能重磅登场**
@@ -422,7 +431,7 @@ pnpm build
 
 **🌟 如果这个项目对您有帮助，请给个Star支持一下！**
 
-[![Star History Chart](https://api.star-history.com/svg?repos=ponysb/91Writing&type=Date)](https://star-history.com/#ponysb/91Writing&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=your-username/91-writer&type=Date)](https://star-history.com/#your-username/91-writer&Date)
 
 </div>
 
@@ -436,4 +445,4 @@ pnpm build
 <img src=".\image\微信截图_20250621205549.png" />
 
 
-*最后更新: 2025年6月22日*
+*最后更新: 2025年6月25日*

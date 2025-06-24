@@ -197,10 +197,10 @@
             </template>
           </el-table-column>
           
-          <el-table-column prop="content" label="请求内容" min-width="200">
+          <el-table-column prop="content" label="请求内容" min-width="300">
             <template #default="{ row }">
-              <div class="content-preview">
-                {{ row.content.substring(0, 50) }}{{ row.content.length > 50 ? '...' : '' }}
+              <div class="content-preview" :title="row.content">
+                {{ row.content.substring(0, 100) }}{{ row.content.length > 100 ? '...' : '' }}
               </div>
             </template>
           </el-table-column>
@@ -300,14 +300,26 @@
         </div>
         
         <div class="content-section">
-          <h4>请求内容</h4>
+          <div class="content-header">
+            <h4>请求内容</h4>
+            <el-button size="small" @click="copyContent(selectedRecord.content)">
+              <el-icon><DocumentCopy /></el-icon>
+              复制
+            </el-button>
+          </div>
           <div class="content-box">
             {{ selectedRecord.content }}
           </div>
         </div>
         
         <div class="response-section" v-if="selectedRecord.response">
-          <h4>响应内容</h4>
+          <div class="content-header">
+            <h4>响应内容</h4>
+            <el-button size="small" @click="copyContent(selectedRecord.response)">
+              <el-icon><DocumentCopy /></el-icon>
+              复制
+            </el-button>
+          </div>
           <div class="content-box">
             {{ selectedRecord.response }}
           </div>
@@ -322,7 +334,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { 
   Download, Upload, DataAnalysis, 
-  TrendCharts, Search 
+  TrendCharts, Search, DocumentCopy 
 } from '@element-plus/icons-vue'
 import billingService from '../services/billing.js'
 
@@ -497,6 +509,22 @@ const exportBilling = () => {
 const viewRecordDetails = (record) => {
   selectedRecord.value = record
   showDetailsDialog.value = true
+}
+
+const copyContent = async (content) => {
+  try {
+    await navigator.clipboard.writeText(content)
+    ElMessage.success('内容已复制到剪贴板')
+  } catch (error) {
+    // 降级处理：创建临时textarea进行复制
+    const textarea = document.createElement('textarea')
+    textarea.value = content
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textarea)
+    ElMessage.success('内容已复制到剪贴板')
+  }
 }
 
 // 生命周期
@@ -723,9 +751,16 @@ onMounted(() => {
   margin-bottom: 20px;
 }
 
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
 .content-section h4,
 .response-section h4 {
-  margin: 0 0 10px 0;
+  margin: 0;
   font-size: 14px;
   color: #303133;
 }

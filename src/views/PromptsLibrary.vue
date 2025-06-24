@@ -70,10 +70,7 @@
                 </el-button>
                 <template #dropdown>
                   <el-dropdown-menu>
-                    <el-dropdown-item @click="usePrompt(prompt)">
-                      <el-icon><Position /></el-icon>
-                      使用提示词
-                    </el-dropdown-item>
+
                     <el-dropdown-item @click="editPrompt(prompt)">
                       <el-icon><Edit /></el-icon>
                       编辑
@@ -113,12 +110,7 @@
                 {{ tag }}
               </el-tag>
             </div>
-            <div class="prompt-meta">
-              <span class="usage-count">
-                <el-icon><View /></el-icon>
-                {{ prompt.usageCount }}
-              </span>
-            </div>
+
           </div>
         </el-card>
       </div>
@@ -311,42 +303,7 @@
       </template>
     </el-dialog>
 
-    <!-- 使用提示词对话框 -->
-    <el-dialog v-model="showUseDialog" title="使用提示词" width="700px">
-      <div class="use-prompt-content">
-        <h4>{{ selectedPrompt?.title }}</h4>
-        <p>{{ selectedPrompt?.description }}</p>
-        
-        <el-form v-if="promptVariables.length > 0" label-width="120px">
-          <el-form-item 
-            v-for="variable in promptVariables"
-            :key="variable"
-            :label="variable + '：'"
-          >
-            <el-input 
-              v-model="variableValues[variable]"
-              :placeholder="'请输入' + variable"
-            />
-          </el-form-item>
-        </el-form>
-        
-        <div class="generated-prompt">
-          <h5>生成的提示词：</h5>
-          <el-input 
-            v-model="generatedPrompt"
-            type="textarea"
-            :rows="6"
-            readonly
-          />
-        </div>
-      </div>
-      
-      <template #footer>
-        <el-button @click="showUseDialog = false">取消</el-button>
-        <el-button @click="copyGeneratedPrompt">复制</el-button>
-        <el-button type="primary" @click="applyPrompt">应用到编辑器</el-button>
-      </template>
-    </el-dialog>
+
   </div>
 </template>
 
@@ -354,18 +311,18 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
-  Plus, Search, MoreFilled, Position, Edit, CopyDocument, 
-  Delete, View, Upload, UploadFilled
+  Plus, Search, MoreFilled, Edit, CopyDocument, 
+  Delete, Upload, UploadFilled
 } from '@element-plus/icons-vue'
 
 // 响应式数据
 const activeCategory = ref('all')
 const searchKeyword = ref('')
 const showAddDialog = ref(false)
-const showUseDialog = ref(false)
+
 const showImportDialog = ref(false)
 const editingPrompt = ref(null)
-const selectedPrompt = ref(null)
+
 const tagInput = ref('')
 const formRef = ref()
 const uploadRef = ref()
@@ -419,23 +376,7 @@ const formRules = {
   content: [{ required: true, message: '请输入内容', trigger: 'blur' }]
 }
 
-// 变量相关
-const variableValues = ref({})
-const promptVariables = computed(() => {
-  if (!selectedPrompt.value) return []
-  const matches = selectedPrompt.value.content.match(/\{([^}]+)\}/g)
-  return matches ? matches.map(match => match.slice(1, -1)) : []
-})
 
-const generatedPrompt = computed(() => {
-  if (!selectedPrompt.value) return ''
-  let result = selectedPrompt.value.content
-  promptVariables.value.forEach(variable => {
-    const value = variableValues.value[variable] || `{${variable}}`
-    result = result.replace(new RegExp(`\\{${variable}\\}`, 'g'), value)
-  })
-  return result
-})
 
 // 计算属性
 const filteredPrompts = computed(() => {
@@ -470,15 +411,7 @@ const handleSearch = () => {
   // 搜索逻辑已在计算属性中处理
 }
 
-const usePrompt = (prompt) => {
-  selectedPrompt.value = prompt
-  variableValues.value = {}
-  showUseDialog.value = true
-  
-  // 增加使用次数
-  prompt.usageCount++
-  savePrompts() // 保存使用计数到本地存储
-}
+
 
 const editPrompt = (prompt) => {
   editingPrompt.value = prompt
@@ -596,15 +529,14 @@ const savePrompt = async () => {
       // 编辑模式
       const index = prompts.value.findIndex(p => p.id === editingPrompt.value.id)
       if (index > -1) {
-        prompts.value[index] = { ...promptForm.value, id: editingPrompt.value.id, usageCount: editingPrompt.value.usageCount }
+        prompts.value[index] = { ...promptForm.value, id: editingPrompt.value.id }
       }
       ElMessage.success('提示词更新成功')
     } else {
       // 新增模式
       const newPrompt = {
         ...promptForm.value,
-        id: Date.now(),
-        usageCount: 0
+        id: Date.now()
       }
       prompts.value.push(newPrompt)
       ElMessage.success('提示词添加成功')
@@ -630,20 +562,7 @@ const resetForm = () => {
   tagInput.value = ''
 }
 
-const copyGeneratedPrompt = async () => {
-  try {
-    await navigator.clipboard.writeText(generatedPrompt.value)
-    ElMessage.success('提示词已复制到剪贴板')
-  } catch (error) {
-    ElMessage.error('复制失败')
-  }
-}
 
-const applyPrompt = () => {
-  // 这里可以集成到编辑器中
-  ElMessage.success('提示词已应用到编辑器')
-  showUseDialog.value = false
-}
 
 // 导入功能相关方法
 const getCategoryName = (categoryKey) => {
@@ -751,7 +670,7 @@ const validatePromptItem = (item, index) => {
     description: item.description.trim(),
     content: item.content.trim(),
     tags: Array.isArray(item.tags) ? item.tags : [],
-    usageCount: parseInt(item.usageCount) || 0,
+    
     isDefault: false
   }
   
@@ -823,7 +742,6 @@ const getDefaultPrompts = () => {
       description: '根据关键词和类型生成详细的小说大纲',
       content: '请为我创作一个{类型}小说的大纲，主题是{主题}，主角是{主角设定}。要求包含：\n1. 故事背景设定\n2. 主要人物介绍\n3. 核心冲突\n4. 章节大纲（至少10章）\n5. 结局走向',
       tags: ['大纲', '结构', '创作'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -833,7 +751,6 @@ const getDefaultPrompts = () => {
       description: '基于章节大纲生成详细的正文内容',
       content: '请为小说《{小说标题}》的章节《{章节标题}》写正文内容。\n\n章节大纲：{章节大纲}\n\n要求：\n1. 字数控制在{目标字数}字左右\n2. 采用{写作视角}视角\n3. 包含丰富的对话、描写和细节\n4. 保持情节连贯性\n5. 突出{重点内容}',
       tags: ['正文', '章节', '基础生成'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -843,7 +760,6 @@ const getDefaultPrompts = () => {
       description: '结合人物、世界观、语料库等素材生成章节内容',
       content: '请为小说《{小说标题}》的章节《{章节标题}》写正文内容。\n\n章节大纲：{章节大纲}\n\n{主要人物}\n\n{世界观设定}\n\n{参考语料}\n\n{前文概要}\n\n创作要求：\n1. 字数控制在{目标字数}字左右\n2. 采用{写作视角}视角\n3. 突出重点：{重点内容}\n4. 充分运用提供的人物设定和世界观背景\n5. 参考语料库的写作风格和表达方式\n6. 与前文保持连贯性和一致性\n7. 包含丰富的对话、心理活动、环境描写\n8. 情节发展要符合章节大纲要求',
       tags: ['全素材', '章节', '综合生成'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -853,7 +769,6 @@ const getDefaultPrompts = () => {
       description: '以对话为主导的章节内容生成',
       content: '请为小说《{小说标题}》的章节《{章节标题}》写正文内容，重点突出对话。\n\n章节大纲：{章节大纲}\n参与对话人物：{主要人物}\n\n创作要求：\n1. 字数控制在{目标字数}字左右\n2. 对话占60%以上篇幅\n3. 通过对话推进情节发展\n4. 展现人物性格和关系\n5. 适当加入动作和心理描写\n6. 对话要符合人物身份和性格\n7. 重点内容：{重点内容}',
       tags: ['对话', '人物', '互动'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -863,7 +778,6 @@ const getDefaultPrompts = () => {
       description: '以环境和场景描写为主的内容生成',
       content: '请为小说《{小说标题}》的章节《{章节标题}》写正文内容，重点突出场景描写。\n\n章节大纲：{章节大纲}\n场景设定：{世界观设定}\n\n创作要求：\n1. 字数控制在{目标字数}字左右\n2. 详细描写环境氛围\n3. 通过场景烘托情节\n4. 调动读者五感体验\n5. 场景与情节相辅相成\n6. 体现世界观特色\n7. 重点内容：{重点内容}',
       tags: ['场景', '环境', '氛围'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -873,7 +787,6 @@ const getDefaultPrompts = () => {
       description: '以动作和情节推进为主的内容生成',
       content: '请为小说《{小说标题}》的章节《{章节标题}》写正文内容，重点突出动作情节。\n\n章节大纲：{章节大纲}\n主要人物：{主要人物}\n\n创作要求：\n1. 字数控制在{目标字数}字左右\n2. 节奏紧凑，情节推进迅速\n3. 动作描写清晰流畅\n4. 突出冲突和转折\n5. 保持紧张感和悬念\n6. 角色行动符合性格\n7. 重点内容：{重点内容}',
       tags: ['动作', '情节', '冲突'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -883,7 +796,6 @@ const getDefaultPrompts = () => {
       description: '以心理活动和内心独白为主的内容生成',
       content: '请为小说《{小说标题}》的章节《{章节标题}》写正文内容，重点突出心理描写。\n\n章节大纲：{章节大纲}\n主角心境：{重点内容}\n人物背景：{主要人物}\n\n创作要求：\n1. 字数控制在{目标字数}字左右\n2. 深入挖掘人物内心世界\n3. 心理活动要真实细腻\n4. 体现人物成长变化\n5. 内心冲突与外在情节呼应\n6. 适当运用意识流技巧\n7. 展现人物独特思维方式',
       tags: ['心理', '内心', '情感'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -893,7 +805,6 @@ const getDefaultPrompts = () => {
       description: '基于现有内容进行智能续写',
       content: '请为小说《{小说标题}》的章节《{章节标题}》续写内容。\n\n当前已写内容：\n{当前内容}\n\n续写要求：\n1. 保持原有风格和语调\n2. 情节自然连贯\n3. 长度约{续写字数}字\n4. 推进剧情发展',
       tags: ['续写', '连贯', '发展'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -903,7 +814,6 @@ const getDefaultPrompts = () => {
       description: '优化文本的表达和文采，提升阅读体验',
       content: '请帮我润色以下文本，要求：\n1. 保持原意不变\n2. 提升文采和表达力\n3. 优化句式结构\n4. 增强画面感\n\n原文：{原文内容}',
       tags: ['润色', '优化', '文采'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -913,7 +823,6 @@ const getDefaultPrompts = () => {
       description: '生成详细的人物设定和背景故事',
       content: '请为小说《{小说标题}》创建一个{角色类型}角色，基本信息：\n- 姓名：{姓名}\n- 角色定位：{角色定位}\n- 性别：{性别}\n- 年龄：{年龄}岁\n\n请详细设定：\n1. 外貌特征\n2. 性格特点\n3. 背景故事\n4. 能力特长\n5. 人际关系\n6. 内心动机',
       tags: ['人设', '角色', '背景'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -985,7 +894,6 @@ const getDefaultPrompts = () => {
 ---
 请确保所有描写都严格遵循科幻修仙的世界观设定，体现传统修真与现代科技的深度融合。`,
       tags: ['科幻修仙', '世界观', '融合设定', '因果系统', '机械佛莲'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -1048,7 +956,6 @@ const getDefaultPrompts = () => {
 【最终确认】
 请确保以上内容100%符合既定世界观，绝不偏离设定框架。`,
       tags: ['世界观', '强制解析', '格式化', '逻辑检查'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -1086,7 +993,6 @@ const getDefaultPrompts = () => {
 
 请创作一篇完整的都市短篇小说。`,
       tags: ['短篇小说', '都市', '现代生活', '完整故事'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -1125,7 +1031,6 @@ const getDefaultPrompts = () => {
 
 请创作一篇完整的玄幻短篇小说。`,
       tags: ['短篇小说', '玄幻', '修炼', '魔法', '完整故事'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -1164,7 +1069,6 @@ const getDefaultPrompts = () => {
 
 请创作一篇完整的言情短篇小说。`,
       tags: ['短篇小说', '言情', '爱情', '甜蜜', '完整故事'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -1203,7 +1107,6 @@ const getDefaultPrompts = () => {
 
 请创作一篇完整的悬疑推理短篇小说。`,
       tags: ['短篇小说', '悬疑', '推理', '谜题', '完整故事'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -1242,7 +1145,6 @@ const getDefaultPrompts = () => {
 
 请创作一篇完整的科幻短篇小说。`,
       tags: ['短篇小说', '科幻', '未来', '科技', '完整故事'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -1289,7 +1191,6 @@ const getDefaultPrompts = () => {
 
 请严格按照上述要求创作一篇完整的短篇小说。`,
       tags: ['短篇小说', '通用模板', '多题材', '标准格式'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -1317,7 +1218,6 @@ const getDefaultPrompts = () => {
 【输出格式】
 请以文本形式输出完整的分析报告，包含具体的技法解析和可借鉴的创作要点。`,
       tags: ['拆书', '综合分析', '写作技法', '创作指导'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -1344,7 +1244,6 @@ const getDefaultPrompts = () => {
 【输出要求】
 以文本形式详细分析结构特点，提供具体的章节组织建议和情节推进技巧。`,
       tags: ['拆书', '结构分析', '情节布局', '叙事技巧'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -1371,7 +1270,6 @@ const getDefaultPrompts = () => {
 【输出格式】
 以文本形式提供详细的人物分析报告，包含具体的人物塑造技法和创作启发。`,
       tags: ['拆书', '人物分析', '性格塑造', '角色设计'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -1398,7 +1296,6 @@ const getDefaultPrompts = () => {
 【输出要求】
 以文本形式提供详细的语言分析，包含具体的写作技法解析和文风借鉴建议。`,
       tags: ['拆书', '语言分析', '文风特色', '修辞技巧'],
-      usageCount: 0,
       isDefault: true
     },
     {
@@ -1425,7 +1322,6 @@ const getDefaultPrompts = () => {
 【输出格式】
 以文本形式详细分析情节技法，提供可学习的创作技巧和具体应用建议。`,
       tags: ['拆书', '情节分析', '冲突设计', '悬念技巧'],
-      usageCount: 0,
       isDefault: true
     }
   ]
@@ -1582,19 +1478,7 @@ const savePrompts = () => {
   flex-wrap: wrap;
 }
 
-.prompt-meta {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: #909399;
-  font-size: 12px;
-}
 
-.usage-count {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-}
 
 .empty-state {
   padding: 60px 0;

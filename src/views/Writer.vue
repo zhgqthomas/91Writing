@@ -751,19 +751,7 @@
               </el-col>
             </el-row>
             
-            <!-- 第二行：关联设置 -->
-            <el-row :gutter="16" style="margin-top: 16px;">
-              <el-col :span="24">
-                <el-form-item label="关联设置" class="config-item">
-                  <div class="checkbox-group-horizontal">
-                    <el-checkbox v-model="generateConfig.useContext" size="small">前文</el-checkbox>
-                    <el-checkbox v-model="generateConfig.useCharacters" size="small">人物</el-checkbox>
-                    <el-checkbox v-model="generateConfig.useWorldview" size="small">世界观</el-checkbox>
-                    <el-checkbox v-model="generateConfig.useEvents" size="small">事件线</el-checkbox>
-                  </div>
-                </el-form-item>
-              </el-col>
-            </el-row>
+
           </el-card>
         </div>
 
@@ -887,6 +875,40 @@
                     <el-button size="small" @click="addEvent">创建事件</el-button>
                   </div>
                 </el-tab-pane>
+
+                <el-tab-pane label="📖 上下文内容" name="chapters">
+                  <div class="tab-header">
+                    <span class="tab-count">已选择 {{ selectedContextChapters.length }}/{{ availableContextChapters.length }}</span>
+                    <div class="context-tab-actions">
+                      <el-button size="small" @click="selectAllContextChapters" v-if="availableContextChapters.length > 0">全选</el-button>
+                    </div>
+                  </div>
+                  <div class="materials-list">
+                    <div 
+                      v-for="chapter in availableContextChapters" 
+                      :key="chapter.id"
+                      class="chapter-material-card"
+                      :class="{ selected: selectedContextChapters.includes(chapter.id) }"
+                      @click="toggleContextChapter(chapter.id)"
+                    >
+                      <div class="chapter-material-header">
+                        <span class="chapter-material-name">第{{ chapter.chapterIndex }}章 {{ chapter.title }}</span>
+                        <div class="chapter-material-tags">
+                          <el-tag :type="getChapterStatusType(chapter.status)" size="small">{{ getChapterStatusText(chapter.status) }}</el-tag>
+                          <el-tag size="small" type="info">{{ chapter.wordCount }}字</el-tag>
+                        </div>
+                      </div>
+                      <p class="chapter-material-desc">{{ chapter.description || '暂无大纲' }}</p>
+                      <div v-if="chapter.content" class="chapter-material-content">
+                        <span class="content-preview">{{ cleanHtmlForPreview(chapter.content, 80) }}...</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-if="availableContextChapters.length === 0" class="empty-materials">
+                    <p>暂无可选择的章节</p>
+                    <el-button size="small" @click="addChapter">创建章节</el-button>
+                  </div>
+                </el-tab-pane>
               </el-tabs>
             </div>
           </el-col>
@@ -939,7 +961,7 @@
                         <div class="prompt-tags">
                           <el-tag v-for="tag in prompt.tags?.slice(0, 2)" :key="tag" size="small">{{ tag }}</el-tag>
                         </div>
-                        <span class="prompt-usage">使用 {{ prompt.usageCount || 0 }} 次</span>
+
                       </div>
                     </div>
                     <div class="prompt-actions">
@@ -966,9 +988,43 @@
                     class="variable-item"
                   >
                     <label class="variable-label">{{ variable }}</label>
+                    
+                    <!-- 前文概要使用章节多选框 -->
+                    <div v-if="variable === '前文概要'" class="context-variable-container">
+                      <el-select
+                        v-model="selectedContextChapters"
+                        multiple
+                        placeholder="选择章节作为前文参考"
+                        @change="updateContextVariable"
+                        size="small"
+                        style="width: 100%"
+                        max-collapse-tags="3"
+                      >
+                        <el-option
+                          v-for="chapter in availableContextChapters"
+                          :key="chapter.id"
+                          :label="`第${chapter.chapterIndex}章 ${chapter.title} (${chapter.wordCount}字)`"
+                          :value="chapter.id"
+                        >
+                          <div class="context-chapter-option">
+                            <span class="chapter-title">第{{ chapter.chapterIndex }}章 {{ chapter.title }}</span>
+                            <div class="chapter-meta">
+                              <el-tag :type="getChapterStatusType(chapter.status)" size="small">{{ getChapterStatusText(chapter.status) }}</el-tag>
+                              <span class="word-count">{{ chapter.wordCount }}字</span>
+                            </div>
+                          </div>
+                        </el-option>
+                      </el-select>
+                      <div class="context-actions">
+                        <el-button size="small" @click="clearContextSelection" v-if="selectedContextChapters.length > 0">清空</el-button>
+                      </div>
+                    </div>
+                    
+                    <!-- 其他变量使用普通输入框 -->
                     <el-input 
+                      v-else
                       v-model="promptVariables[variable]"
-                      :type="['章节大纲', '主要人物', '世界观设定', '参考语料', '前文概要'].includes(variable) ? 'textarea' : 'text'"
+                      :type="['章节大纲', '主要人物', '世界观设定', '参考语料'].includes(variable) ? 'textarea' : 'text'"
                       :rows="2"
                       :placeholder="'请输入' + variable"
                       @input="generateFinalPrompt"
@@ -2137,16 +2193,16 @@ const selectedMaterials = ref({
   characters: [],
   worldSettings: [],
   corpus: [],
-  events: []
+  events: [],
+  chapters: []
 })
+
+// 前文概要章节选择
+const selectedContextChapters = ref([])
 const generateConfig = ref({
   wordCount: 2000,
   style: 'third-person',
-  focus: '',
-  useContext: true,
-  useCharacters: true,
-  useWorldview: true,
-  useEvents: true
+  focus: ''
 })
 
 // 正文生成分类
@@ -2281,11 +2337,7 @@ const aiChapterForm = ref({
 const aiContentForm = ref({
   wordCount: 2000,
   style: 'third-person',
-  focus: '',
-  useContext: true,
-  useCharacters: true,
-  useWorldview: true,
-  useEvents: true
+  focus: ''
 })
 
 const characterForm = ref({
@@ -2361,6 +2413,10 @@ const selectChapter = (chapter) => {
 }
 
 const loadChapter = (chapter) => {
+  // 确保章节有正确的状态字段，如果没有则设置为草稿
+  if (!chapter.status || chapter.status === 'outline') {
+    chapter.status = 'draft'
+  }
   currentChapter.value = chapter
   content.value = chapter.content || ''
 }
@@ -2896,7 +2952,7 @@ const getDefaultPrompts = () => {
       title: '全素材章节生成器',
       category: 'content',
       description: '结合人物、世界观、语料库等素材生成章节内容',
-      content: '请为小说《{小说标题}》的章节《{章节标题}》写正文内容。\n\n章节大纲：{章节大纲}\n\n{主要人物}\n\n{世界观设定}\n\n{参考语料}\n\n{前文概要}\n\n创作要求：\n1. 字数控制在{目标字数}字左右\n2. 采用{写作视角}视角\n3. 突出重点：{重点内容}\n4. 充分运用提供的人物设定和世界观背景\n5. 参考语料库的写作风格和表达方式\n6. 与前文保持连贯性和一致性\n7. 包含丰富的对话、心理活动、环境描写\n8. 情节发展要符合章节大纲要求',
+      content: '请为小说《{小说标题}》的章节《{章节标题}》写正文内容。\n\n章节大纲：{章节大纲}\n\n{主要人物}\n\n{世界观设定}\n\n{参考语料}\n\n{前文概要}\n\n创作要求：\n1. 字数控制在{目标字数}字左右\n2. 采用{写作视角}视角\n3. 突出重点：{重点内容}\n4. 充分运用提供的人物设定和世界观背景\n5. 参考语料库的写作风格和表达方式\n6. 与前文保持连贯性和一致性\n7. 包含丰富的对话、心理活动、环境描写',
       tags: ['全素材', '章节', '综合生成'],
       isDefault: true
     },
@@ -3248,26 +3304,9 @@ watch(generateConfig, () => {
     promptVariables.value['写作视角'] = getViewpointDescription(generateConfig.value.style)
     promptVariables.value['重点内容'] = generateConfig.value.focus || '按大纲发展'
     
-    // 如果启用了前文关联，重新填充前文概要
-    if (generateConfig.value.useContext && targetChapter.value) {
-      const chapterIndex = chapters.value.findIndex(ch => ch.id === targetChapter.value.id)
-      if (chapterIndex > 0) {
-        const previousChapters = chapters.value.slice(Math.max(0, chapterIndex - 2), chapterIndex)
-        const contextInfo = previousChapters.map(ch => 
-          `第${chapters.value.indexOf(ch) + 1}章《${ch.title}》：${ch.description || '暂无概要'}`
-        ).join('\n')
-        promptVariables.value['前文概要'] = contextInfo
-      } else {
-        // 如果没有前文，清空前文概要
-        if (promptVariables.value['前文概要']) {
-          promptVariables.value['前文概要'] = ''
-        }
-      }
-    } else {
-      // 如果未启用前文关联，清空前文概要
-      if (promptVariables.value['前文概要']) {
-        promptVariables.value['前文概要'] = ''
-      }
+    // 如果有目标章节，检查是否需要自动选择前文章节
+    if (targetChapter.value && selectedContextChapters.value.length === 0) {
+      autoSelectRecentTwoChapters()
     }
     
     // 重新生成最终提示词
@@ -3316,6 +3355,33 @@ watch(selectedMaterials, () => {
       // 如果没有选中语料库，清空语料库信息
       if (promptVariables.value['参考语料']) {
         promptVariables.value['参考语料'] = ''
+      }
+    }
+    
+    // 填充选中的章节内容
+    if (selectedMaterials.value.chapters.length > 0) {
+      const chaptersInfo = selectedMaterials.value.chapters.map(ch => {
+        const chapterIndex = getChapterIndex(ch)
+        let chapterInfo = `第${chapterIndex}章《${ch.title}》\n`
+        
+        if (ch.description) {
+          chapterInfo += `章节大纲：${ch.description}\n`
+        }
+        
+        if (ch.content && ch.content.trim()) {
+          // 取章节内容的前500字作为参考，清理HTML标签
+          const contentPreview = cleanHtmlForPreview(ch.content, 500)
+          chapterInfo += `章节内容：${contentPreview}${ch.content.length > 500 ? '...' : ''}`
+        }
+        
+        return chapterInfo
+      }).join('\n\n')
+      
+      promptVariables.value['前文概要'] = chaptersInfo
+    } else {
+      // 如果没有选中章节，清空前文概要
+      if (promptVariables.value['前文概要']) {
+        promptVariables.value['前文概要'] = ''
       }
     }
     
@@ -3440,15 +3506,18 @@ const openChapterGenerateDialog = (chapter) => {
     characters: [],
     worldSettings: [],
     corpus: [],
-    events: []
+    events: [],
+    chapters: []
   }
+  
+  // 默认选中最近两章内容
+  autoSelectRecentTwoChapters()
   
   // 重置生成配置
   generateConfig.value = {
     wordCount: 2000,
     style: 'third-person',
-    focus: '',
-    useContext: true
+    focus: ''
   }
   
   // 重置提示词选择
@@ -3502,16 +3571,34 @@ const autoFillVariables = () => {
     promptVariables.value['参考语料'] = corpusInfo
   }
   
-  // 填充前文内容
-  if (generateConfig.value.useContext) {
-    const chapterIndex = chapters.value.findIndex(ch => ch.id === targetChapter.value.id)
-    if (chapterIndex > 0) {
-      const previousChapters = chapters.value.slice(Math.max(0, chapterIndex - 2), chapterIndex)
-      const contextInfo = previousChapters.map(ch => 
-        `第${chapters.value.indexOf(ch) + 1}章《${ch.title}》：${ch.description || '暂无概要'}`
-      ).join('\n')
-      promptVariables.value['前文概要'] = contextInfo
-    }
+  // 填充选中的章节内容（使用新的上下文章节选择）
+  if (selectedContextChapters.value.length > 0) {
+    // 使用用户选择的前文概要章节
+    const contextChapters = selectedContextChapters.value.map(chapterId => {
+      return chapters.value.find(ch => ch.id === chapterId)
+    }).filter(Boolean)
+    
+    const contextInfo = contextChapters.map(ch => {
+      const chapterIndex = getChapterIndex(ch)
+      let chapterInfo = `第${chapterIndex}章《${ch.title}》\n`
+      
+      if (ch.description) {
+        chapterInfo += `章节大纲：${ch.description}\n`
+      }
+      
+      if (ch.content && ch.content.trim()) {
+        // 取章节内容的前500字作为参考，清理HTML标签
+        const contentPreview = cleanHtmlForPreview(ch.content, 500)
+        chapterInfo += `章节内容：${contentPreview}${ch.content.length > 500 ? '...' : ''}`
+      }
+      
+      return chapterInfo
+    }).join('\n\n')
+    
+    promptVariables.value['前文概要'] = contextInfo
+  } else if (targetChapter.value && selectedContextChapters.value.length === 0) {
+    // 如果没有选择章节，自动选择最近两章
+    autoSelectRecentTwoChapters()
   }
   
   generateFinalPrompt()
@@ -3595,6 +3682,149 @@ const getImportanceType = (importance) => {
   }
   return typeMap[importance] || 'primary'
 }
+
+// 获取可选择的章节列表（排除当前正在生成的章节）
+const availableChaptersForSelection = computed(() => {
+  if (!chapters.value || !targetChapter.value) return []
+  
+  // 只返回当前目标章节之前的章节
+  const targetIndex = chapters.value.findIndex(ch => ch.id === targetChapter.value.id)
+  if (targetIndex <= 0) return []
+  
+  return chapters.value.slice(0, targetIndex).filter(ch => ch.content && ch.content.trim())
+})
+
+// 获取可用于前文概要的章节列表（所有有内容的章节，不限制当前章节）
+const availableContextChapters = computed(() => {
+  if (!chapters.value) return []
+  
+  return chapters.value.filter(ch => {
+    // 只返回有内容的章节（可以是大纲或正文）
+    return ch.description || (ch.content && ch.content.trim())
+  }).map(ch => ({
+    id: ch.id,
+    title: ch.title,
+    description: ch.description,
+    content: ch.content,
+    status: ch.status,
+    wordCount: ch.wordCount || 0,
+    chapterIndex: getChapterIndex(ch)
+  }))
+})
+
+// 获取章节索引（第几章）
+const getChapterIndex = (chapter) => {
+  return chapters.value.findIndex(ch => ch.id === chapter.id) + 1
+}
+
+// 清理HTML标签并截取内容预览
+const cleanHtmlForPreview = (htmlContent, maxLength = 80) => {
+  if (!htmlContent) return ''
+  
+  // 去除HTML标签
+  let cleanText = htmlContent.replace(/<[^>]*>/g, '')
+  
+  // 转换HTML实体
+  cleanText = cleanText
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+  
+  // 去除多余的空白字符
+  cleanText = cleanText.replace(/\s+/g, ' ').trim()
+  
+  // 截取指定长度
+  return cleanText.length > maxLength ? cleanText.substring(0, maxLength) : cleanText
+}
+
+// 更新前文概要变量
+const updateContextVariable = () => {
+  if (selectedContextChapters.value.length > 0) {
+    const contextChapters = selectedContextChapters.value.map(chapterId => {
+      return chapters.value.find(ch => ch.id === chapterId)
+    }).filter(Boolean)
+    
+    const contextInfo = contextChapters.map(ch => {
+      const chapterIndex = getChapterIndex(ch)
+      let chapterInfo = `第${chapterIndex}章《${ch.title}》\n`
+      
+      if (ch.description) {
+        chapterInfo += `章节大纲：${ch.description}\n`
+      }
+      
+      if (ch.content && ch.content.trim()) {
+        // 取章节内容的前500字作为参考，清理HTML标签
+        const contentPreview = cleanHtmlForPreview(ch.content, 500)
+        chapterInfo += `章节内容：${contentPreview}${ch.content.length > 500 ? '...' : ''}`
+      }
+      
+      return chapterInfo
+    }).join('\n\n')
+    
+    promptVariables.value['前文概要'] = contextInfo
+  } else {
+    promptVariables.value['前文概要'] = ''
+  }
+  
+  generateFinalPrompt()
+}
+
+// 自动选择最近两章内容
+const autoSelectRecentTwoChapters = () => {
+  if (!targetChapter.value || !chapters.value.length) {
+    selectedContextChapters.value = []
+    return
+  }
+  
+  const targetIndex = chapters.value.findIndex(ch => ch.id === targetChapter.value.id)
+  if (targetIndex <= 0) {
+    selectedContextChapters.value = []
+    return
+  }
+  
+  // 选择前面最近2章有内容的章节
+  const previousChapters = chapters.value.slice(0, targetIndex)
+    .filter(ch => ch.description || (ch.content && ch.content.trim()))
+    .slice(-2) // 取最近的2章
+  
+  selectedContextChapters.value = previousChapters.map(ch => ch.id)
+  updateContextVariable()
+}
+
+// 清空前文概要选择
+const clearContextSelection = () => {
+  selectedContextChapters.value = []
+  updateContextVariable()
+  ElMessage.success('已清空前文概要选择')
+}
+
+// 切换上下文章节选择（双向同步）
+const toggleContextChapter = (chapterId) => {
+  const index = selectedContextChapters.value.indexOf(chapterId)
+  
+  if (index > -1) {
+    // 已选中，取消选择
+    selectedContextChapters.value.splice(index, 1)
+  } else {
+    // 未选中，添加选择
+    selectedContextChapters.value.push(chapterId)
+  }
+  
+  // 更新前文概要变量
+  updateContextVariable()
+}
+
+// 选择所有上下文章节
+const selectAllContextChapters = () => {
+  selectedContextChapters.value = availableContextChapters.value.map(ch => ch.id)
+  updateContextVariable()
+  ElMessage.success(`已选择所有${availableContextChapters.value.length}个章节`)
+}
+
+
 
 // 显示批量生成对话框
 const showBatchGenerateDialog = () => {
@@ -4597,7 +4827,7 @@ ${customPrompt}
         wordCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        status: 'outline'
+        status: 'draft'
       }
       chapters.value.push(newChapter)
     })
@@ -4655,9 +4885,9 @@ const generateContentWithPrompt = async (customPrompt) => {
 
 `
 
-    // 添加人物信息（如果用户启用了人物关联或选择了人物素材）
-    if ((context.characters.length > 0 && currentConfig.useCharacters) || selectedMaterials.value.characters.length > 0) {
-      const charactersToUse = selectedMaterials.value.characters.length > 0 ? selectedMaterials.value.characters : context.characters
+    // 添加人物信息（如果用户选择了人物素材）
+    if (selectedMaterials.value.characters.length > 0) {
+      const charactersToUse = selectedMaterials.value.characters
       promptWithNovelInfo += `=== 主要人物设定 ===
 ${charactersToUse.map(char => 
   `- ${char.name}（${char.role}）：${char.personality || '暂无描述'}`
@@ -4666,9 +4896,9 @@ ${charactersToUse.map(char =>
 `
     }
 
-    // 添加世界观信息（如果用户启用了世界观关联或选择了世界观素材）
-    if ((context.worldSettings.length > 0 && currentConfig.useWorldview) || selectedMaterials.value.worldSettings.length > 0) {
-      const worldSettingsToUse = selectedMaterials.value.worldSettings.length > 0 ? selectedMaterials.value.worldSettings : context.worldSettings
+    // 添加世界观信息（如果用户选择了世界观素材）
+    if (selectedMaterials.value.worldSettings.length > 0) {
+      const worldSettingsToUse = selectedMaterials.value.worldSettings
       promptWithNovelInfo += `=== 世界观设定 ===
 ${worldSettingsToUse.map(setting => 
   `- ${setting.title}：${setting.description || '暂无描述'}`
@@ -4687,9 +4917,9 @@ ${selectedMaterials.value.corpus.map(item =>
 `
     }
 
-    // 添加事件线信息（如果用户启用了事件线关联或选择了事件素材）
-    if ((context.recentEvents.length > 0 && currentConfig.useEvents) || selectedMaterials.value.events.length > 0) {
-      const eventsToUse = selectedMaterials.value.events.length > 0 ? selectedMaterials.value.events : context.recentEvents
+    // 添加事件线信息（如果用户选择了事件素材）
+    if (selectedMaterials.value.events.length > 0) {
+      const eventsToUse = selectedMaterials.value.events
       promptWithNovelInfo += `=== 相关事件线 ===
 ${eventsToUse.map(event => 
   `- 第${event.chapter}章：${event.title} - ${event.description || '暂无描述'}`
@@ -4700,38 +4930,80 @@ ${eventsToUse.map(event =>
 `
     }
 
-    // 添加前文上下文（如果用户启用了前文关联）
-    if (context.previousChapters.length > 0 && currentConfig.useContext) {
-      const recentChapters = context.previousChapters.slice(-2) // 最近2章
+    // 添加前文上下文（优先使用用户选择的上下文章节）
+    let selectedChapters = []
+    
+    // 如果用户在对话框中选择了特定的上下文章节，使用这些章节
+    if (selectedContextChapters.value && selectedContextChapters.value.length > 0) {
+      selectedChapters = selectedContextChapters.value.map(chapterId => {
+        return chapters.value.find(ch => ch.id === chapterId)
+      }).filter(Boolean)
+         }
+    
+    if (selectedChapters.length > 0) {
+      // 显示使用的上下文章节信息
+      const chapterNames = selectedChapters.map(ch => {
+        const chapterIndex = chapters.value.findIndex(c => c.id === ch.id) + 1
+        return `第${chapterIndex}章：${ch.title}`
+      }).join('、')
+      
+      console.log(`正在使用以下章节作为上下文参考：${chapterNames}`)
+      ElMessage.info({
+        message: `使用上下文：${chapterNames}`,
+        duration: 3000
+      })
+      
       promptWithNovelInfo += `=== 前文概要（必须保持连贯） ===
-${recentChapters.map((ch, idx) => 
-  `第${context.previousChapters.length - recentChapters.length + idx + 1}章《${ch.title}》：${ch.description || '暂无概要'}`
-).join('\n')}
+${selectedChapters.map((ch) => {
+  const chapterIndex = chapters.value.findIndex(c => c.id === ch.id) + 1
+  return `第${chapterIndex}章《${ch.title}》：${ch.description || '暂无概要'}`
+}).join('\n')}
 
-=== 前文结尾内容（保持文风和情节连贯） ===`
+=== 前文详细内容（保持文风和情节连贯） ===`
 
-      // 获取最近章节的实际内容，特别是结尾部分
-      recentChapters.forEach((ch, idx) => {
-        const chapterNumber = context.previousChapters.length - recentChapters.length + idx + 1
-        if (ch.content && ch.content.trim()) {
-          // 提取章节内容的最后500字作为连贯参考
-          const content = ch.content.replace(/<[^>]*>/g, '').trim() // 去除HTML标签
-          const lastPart = content.length > 500 ? '...' + content.slice(-500) : content
+      // 获取选中章节的实际内容，特别是结尾部分
+      selectedChapters.forEach((ch) => {
+        const chapterIndex = chapters.value.findIndex(c => c.id === ch.id) + 1
+        if (ch.description) {
           promptWithNovelInfo += `
-【第${chapterNumber}章结尾部分】
-${lastPart}
+【第${chapterIndex}章大纲】
+${ch.description}
 `
+        }
+        
+        if (ch.content && ch.content.trim()) {
+          // 提取章节内容的前500字和后500字作为参考
+          const content = ch.content.replace(/<[^>]*>/g, '').trim() // 去除HTML标签
+          
+          if (content.length <= 1000) {
+            // 如果内容不长，直接包含全部
+            promptWithNovelInfo += `
+【第${chapterIndex}章内容】
+${content}
+`
+          } else {
+            // 如果内容较长，取开头和结尾部分
+            const startPart = content.substring(0, 500)
+            const endPart = content.slice(-500)
+            promptWithNovelInfo += `
+【第${chapterIndex}章开头部分】
+${startPart}
+
+【第${chapterIndex}章结尾部分】
+${endPart}
+`
+          }
         }
       })
 
       promptWithNovelInfo += `
-【重要】必须确保本章内容与前文在以下方面保持连贯：
+【重要】必须确保本章内容与选定的前文章节在以下方面保持连贯：
 - 人物性格和行为逻辑一致
 - 时间线和事件发展合理
 - 情节推进自然流畅
 - 世界观设定保持统一
 - 文风和叙述风格保持一致
-- 与前文结尾部分的情节自然衔接
+- 与前文情节自然衔接，特别是与最后章节的结尾部分
 
 `
     }
@@ -4765,6 +5037,7 @@ ${customPrompt}
 请确保生成的正文符合小说的整体风格、类型和世界观设定，与章节大纲保持一致。`
     
     console.log('=== 发送给AI的完整提示词 ===')
+    console.log('选中的上下文章节:', selectedChapters.map(ch => `第${chapters.value.findIndex(c => c.id === ch.id) + 1}章：${ch.title}`))
     console.log(promptWithNovelInfo)
     console.log('=== 提示词结束 ===')
     
@@ -6961,16 +7234,29 @@ const initNovel = () => {
       
       // 处理日期对象
       if (novel.chapterList) {
-        chapters.value = novel.chapterList.map(chapter => ({
-          ...chapter,
-          createdAt: new Date(chapter.createdAt),
-          updatedAt: new Date(chapter.updatedAt)
-        }))
+        chapters.value = novel.chapterList.map(chapter => {
+          // 修复旧数据中可能存在的'outline'状态
+          let fixedStatus = chapter.status || 'draft'
+          if (fixedStatus === 'outline') {
+            fixedStatus = 'draft'
+          }
+          
+          return {
+            ...chapter,
+            createdAt: new Date(chapter.createdAt),
+            updatedAt: new Date(chapter.updatedAt),
+            // 确保状态字段存在，兼容旧数据，并修复错误的'outline'状态
+            status: fixedStatus
+          }
+        })
         
         // 如果存在章节，自动选择第一章节
         if (chapters.value.length > 0) {
           selectChapter(chapters.value[0])
         }
+        
+        // 保存修复后的数据
+        saveNovelData()
       }
       
       // 加载相关数据
@@ -7136,8 +7422,17 @@ const clearAllMaterials = () => {
     characters: [],
     worldSettings: [],
     corpus: [],
-    events: []
+    events: [],
+    chapters: []
   }
+  
+  // 清空前文概要章节选择
+  selectedContextChapters.value = []
+  if (promptVariables.value['前文概要']) {
+    promptVariables.value['前文概要'] = ''
+    generateFinalPrompt()
+  }
+  
   ElMessage.success('已清空所有选择')
 }
 
@@ -7152,8 +7447,20 @@ const selectAllMaterials = (type) => {
     case 'corpus':
       selectedMaterials.value.corpus = [...corpusData.value]
       break
+    case 'events':
+      selectedMaterials.value.events = [...events.value]
+      break
+    case 'chapters':
+      // 章节选择已改为使用上下文选择，这里保持原有逻辑但不再使用
+      selectedMaterials.value.chapters = [...availableChaptersForSelection.value]
+      break
   }
-  ElMessage.success(`已选择所有${type === 'characters' ? '人物' : type === 'worldSettings' ? '世界观' : '语料'}`)
+  const typeText = type === 'characters' ? '人物' : 
+                   type === 'worldSettings' ? '世界观' : 
+                   type === 'corpus' ? '语料' : 
+                   type === 'events' ? '事件线' : 
+                   type === 'chapters' ? '章节' : '素材'
+  ElMessage.success(`已选择所有${typeText}`)
 }
 
 const useDefaultPrompt = () => {
@@ -7184,11 +7491,13 @@ const editPrompt = () => {
 }
 
 const getGenerateInfo = () => {
-  const selectedCount = selectedMaterials.value.characters.length + 
-                       selectedMaterials.value.worldSettings.length + 
-                       selectedMaterials.value.corpus.length
+  const selectedCount = (selectedMaterials.value.characters?.length || 0) + 
+                       (selectedMaterials.value.worldSettings?.length || 0) + 
+                       (selectedMaterials.value.corpus?.length || 0) + 
+                       (selectedMaterials.value.events?.length || 0) +
+                       (selectedContextChapters.value?.length || 0)
   const estimatedCost = (generateConfig.value.wordCount * 0.001).toFixed(3)
-  return `已选择${selectedCount}个素材，目标${generateConfig.value.wordCount}字，预估费用¥${estimatedCost}`
+  return `已选择${selectedCount}个素材（含${selectedContextChapters.value?.length || 0}个上下文章节），目标${generateConfig.value.wordCount}字，预估费用¥${estimatedCost}`
 }
 
 const previewGenerate = () => {
@@ -7198,7 +7507,8 @@ const previewGenerate = () => {
     `提示词：${selectedPrompt.value.title}\n` +
     `目标字数：${generateConfig.value.wordCount}\n` +
     `写作视角：${generateConfig.value.style}\n` +
-    `选择素材：${selectedMaterials.value.characters.length}个人物，${selectedMaterials.value.worldSettings.length}个设定\n` +
+    `选择素材：${selectedMaterials.value.characters?.length || 0}个人物，${selectedMaterials.value.worldSettings?.length || 0}个设定，${selectedMaterials.value.corpus?.length || 0}个语料，${selectedMaterials.value.events?.length || 0}个事件线\n` +
+    `上下文章节：${selectedContextChapters.value?.length || 0}个章节\n` +
     `预估费用：¥${(generateConfig.value.wordCount * 0.001).toFixed(3)}`,
     '生成配置预览',
     {
@@ -7355,7 +7665,7 @@ ${chapters.value.map((ch, idx) => `第${idx + 1}章：${ch.title} - ${ch.descrip
       wordCount: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
-      status: 'outline'
+      status: 'draft'
     }
     
     chapters.value.push(newChapter)
@@ -7471,7 +7781,7 @@ ${chapterExamples.join('\n\n')}
         wordCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        status: 'outline'
+        status: 'draft'
       }
       chapters.value.push(newChapter)
       console.log(`添加章节 ${index + 1}:`, newChapter.title)
@@ -7720,7 +8030,7 @@ const generateBatchChaptersWithPrompt = async (customPrompt) => {
         wordCount: 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        status: 'outline'
+        status: 'draft'
       }
       chapters.value.push(newChapter)
       console.log(`添加章节 ${index + 1}:`, newChapter.title)
@@ -8100,6 +8410,8 @@ const generateBatchChaptersWithPrompt = async (customPrompt) => {
   padding: 12px 16px;
   background-color: #fafbfc;
   border-bottom: 1px solid #e4e7ed;
+  min-height: 48px;
+  flex-wrap: nowrap;
 }
 
 .tab-count {
@@ -8299,10 +8611,7 @@ const generateBatchChaptersWithPrompt = async (customPrompt) => {
   align-items: center;
 }
 
-.prompt-usage {
-  font-size: 11px;
-  color: #909399;
-}
+
 
 .prompt-actions {
   flex-shrink: 0;
@@ -9531,6 +9840,50 @@ const generateBatchChaptersWithPrompt = async (customPrompt) => {
   gap: 12px;
 }
 
+/* 前文概要章节选择样式 */
+.context-variable-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.context-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.context-chapter-option {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.context-chapter-option .chapter-title {
+  font-size: 13px;
+  color: #303133;
+  font-weight: 500;
+  flex: 1;
+}
+
+.context-chapter-option .chapter-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.context-chapter-option .word-count {
+  font-size: 11px;
+  color: #909399;
+}
+
+/* 上下文标签页操作按钮 */
+.context-tab-actions {
+  display: flex;
+  gap: 8px;
+}
+
 /* 批量生成角色对话框样式 */
 .batch-generate-content {
   max-height: 70vh;
@@ -10038,5 +10391,88 @@ const generateBatchChaptersWithPrompt = async (customPrompt) => {
 
 .empty-result {
   min-height: 300px;
+}
+
+/* 章节选择样式 */
+.materials-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.chapter-material-card {
+  padding: 14px;
+  border: 1px solid #e1e8ed;
+  border-radius: 8px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #fafbfc;
+  min-height: 80px;
+  position: relative;
+}
+
+.chapter-material-card:hover {
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
+}
+
+.chapter-material-card.selected {
+  border-color: #409eff;
+  background-color: #e6f4ff;
+}
+
+.chapter-material-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 8px;
+  min-height: 32px;
+  gap: 8px;
+}
+
+.chapter-material-name {
+  font-weight: 500;
+  color: #303133;
+  font-size: 14px;
+  flex: 1;
+  margin-right: 8px;
+  line-height: 1.4;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  min-width: 0;
+}
+
+.chapter-material-tags {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.chapter-material-desc {
+  color: #666;
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 4px 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.chapter-material-content {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+}
+
+.content-preview {
+  color: #999;
+  font-size: 11px;
+  line-height: 1.3;
+  font-style: italic;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  display: block;
+  margin-top: 4px;
 }
 </style>

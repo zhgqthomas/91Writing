@@ -151,10 +151,40 @@ class APIService {
   async generateTextStream(prompt, options = {}, onChunk = null) {
     console.log('开始流式生成，prompt:', prompt.substring(0, 100) + '...') // 调试日志
     
+    // 验证配置的完整性
+    if (!this.config.apiKey || this.config.apiKey.trim() === '') {
+      throw new Error('API密钥未配置，请先在设置中配置API密钥')
+    }
+    
+    if (!this.config.baseURL || this.config.baseURL.trim() === '') {
+      throw new Error('API地址未配置，请先在设置中配置API地址')
+    }
+    
     const model = options.model || this.config.selectedModel || this.config.defaultModel || 'gpt-3.5-turbo'
+    console.log('使用模型:', model)
+    
+    // 验证prompt参数
+    if (!prompt || typeof prompt !== 'string') {
+      throw new Error('无效的prompt参数')
+    }
+    
+    // 清理prompt内容，确保JSON序列化安全
+    let cleanPrompt = prompt
+    try {
+      // 移除控制字符和不可见字符
+      cleanPrompt = prompt.replace(/[\u0000-\u001F\u007F-\u009F]/g, '')
+      
+      // 确保可以正常JSON序列化
+      JSON.stringify({ content: cleanPrompt })
+      
+      console.log('Prompt清理完成，原长度:', prompt.length, '清理后长度:', cleanPrompt.length)
+    } catch (cleanError) {
+      console.error('Prompt清理失败:', cleanError)
+      throw new Error('提示词包含无法处理的字符，请检查输入内容')
+    }
     
     // 估算输入token数量（用于记录，无需检查余额）
-    const estimatedInputTokens = billingService.estimateTokens(prompt)
+    const estimatedInputTokens = billingService.estimateTokens(cleanPrompt)
     
     // 移除maxTokens限制，允许无限制生成
     const maxTokens = options.maxTokens || this.config.maxTokens || null
@@ -170,7 +200,7 @@ class APIService {
       messages: [
         {
           role: 'user',
-          content: prompt
+          content: cleanPrompt
         }
       ],
       max_tokens: maxTokens || undefined, // 如果为null则不设置限制
@@ -389,7 +419,7 @@ class APIService {
       billingService.recordAPICall({
         type: options.type || 'generation',
         model: model,
-        content: prompt,
+        content: cleanPrompt,
         response: fullContent,
         inputTokens: estimatedInputTokens,
         outputTokens: outputTokens,
@@ -404,7 +434,7 @@ class APIService {
         billingService.recordAPICall({
           type: options.type || 'generation',
           model: model,
-          content: prompt,
+          content: cleanPrompt,
           response: fullContent,
           inputTokens: estimatedInputTokens,
           outputTokens: billingService.estimateTokens(fullContent),

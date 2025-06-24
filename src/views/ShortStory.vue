@@ -656,11 +656,40 @@ const customTimeFrames = computed(() => configData.timeFrames)
 // 方法
 
 const generateStory = async () => {
+  if (generating.value) return
+  
   generating.value = true
   generatedStory.value = ''
   
   try {
     const prompt = buildStoryPrompt()
+    
+    // 添加详细的调试信息
+    console.log('=== 短篇小说生成调试信息 ===')
+    console.log('prompt类型:', typeof prompt)
+    console.log('prompt长度:', prompt.length)
+    console.log('prompt内容:', prompt)
+    
+    // 检查prompt中是否包含可能导致JSON问题的字符
+    const problematicChars = prompt.match(/[\u0000-\u001F\u007F-\u009F]/g)
+    if (problematicChars) {
+      console.warn('发现控制字符:', problematicChars)
+    }
+    
+    // 检查是否有未转义的引号
+    const unescapedQuotes = prompt.match(/(?<!\\)"/g)
+    if (unescapedQuotes) {
+      console.warn('发现未转义的引号数量:', unescapedQuotes.length)
+    }
+    
+    // 尝试JSON序列化测试
+    try {
+      JSON.stringify({ content: prompt })
+      console.log('JSON序列化测试通过')
+    } catch (jsonError) {
+      console.error('JSON序列化测试失败:', jsonError)
+      throw new Error('提示词包含无法序列化的字符: ' + jsonError.message)
+    }
     
     // 使用流式返回
     let accumulatedText = ''
@@ -672,6 +701,10 @@ const generateStory = async () => {
     
     ElMessage.success('小说生成成功！')
   } catch (error) {
+    console.error('=== 生成失败详细信息 ===')
+    console.error('错误类型:', error.constructor.name)
+    console.error('错误消息:', error.message)
+    console.error('错误堆栈:', error.stack)
     ElMessage.error('生成失败：' + error.message)
   } finally {
     generating.value = false
@@ -706,19 +739,29 @@ const buildStoryPrompt = () => {
   // 可选的快速设置
   if (genre) {
     const genreInfo = customGenres.value.find(g => g.value === genre)
-    prompt += `- 题材风格：${genreInfo?.label}\n`
+    prompt += `- 题材风格：${genreInfo?.label || genre}\n`
   }
   if (plotType) {
     const plotInfo = customPlotTypes.value.find(p => p.value === plotType)
-    prompt += `- 情节类型：${plotInfo?.label}\n`
+    prompt += `- 情节类型：${plotInfo?.label || plotType}\n`
   }
   if (emotion) {
     const emotionInfo = customEmotions.value.find(e => e.value === emotion)
-    prompt += `- 情绪氛围：${emotionInfo?.label?.replace(/[😊😢😰💕🔮]\s/, '') || emotion}\n`
+    // 修复表情符号处理，确保JSON序列化安全
+    let emotionLabel = emotion
+    if (emotionInfo && emotionInfo.label) {
+      // 移除所有表情符号和特殊字符，只保留文字
+      emotionLabel = emotionInfo.label.replace(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '').trim()
+      // 如果去掉表情符号后为空，使用原始emotion值
+      if (!emotionLabel) {
+        emotionLabel = emotion
+      }
+    }
+    prompt += `- 情绪氛围：${emotionLabel}\n`
   }
   if (timeFrame) {
     const timeInfo = customTimeFrames.value.find(t => t.value === timeFrame)
-    prompt += `- 时间背景：${timeInfo?.label}\n`
+    prompt += `- 时间背景：${timeInfo?.label || timeFrame}\n`
   }
   if (location) {
     prompt += `- 故事地点：${location}\n`
@@ -742,6 +785,10 @@ const buildStoryPrompt = () => {
   }
   
   prompt += `请创作一篇完整的短篇小说，字数控制在3000-5000字，要求情节完整，人物鲜明，语言生动。`
+  
+  // 添加调试日志
+  console.log('构建的prompt长度:', prompt.length)
+  console.log('prompt预览:', prompt.substring(0, 200) + '...')
   
   return prompt
 }

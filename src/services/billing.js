@@ -117,8 +117,8 @@ class BillingService {
         timestamp: new Date().toISOString(),
         type: params.type || 'generation',
         model: params.model,
-        content: params.content?.substring(0, 200) || '', // 只保存前200个字符
-        response: params.response?.substring(0, 500) || '', // 只保存前500个字符
+        content: params.content || '', // 保存完整的请求内容
+        response: params.response || '', // 保存完整的响应内容
         inputTokens: params.inputTokens || 0,
         outputTokens: params.outputTokens || 0,
         totalTokens: (params.inputTokens || 0) + (params.outputTokens || 0),

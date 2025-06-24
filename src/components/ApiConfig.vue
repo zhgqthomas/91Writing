@@ -156,12 +156,12 @@ const configForm = reactive({
 const defaultModels = [
   {
     id: 'deepseek-r1',
-    name: 'deepseek-r1',
+    name: 'deepseek-reasoner',
     description: 'deepseek-r1'
   },
   {
     id: 'deepseek-v3',
-    name: 'deepseek-v3',
+    name: 'deepseek-chat',
     description: 'deepseek-v3'
   },
   {
