@@ -207,9 +207,7 @@
                 <div class="worldview-content" @click="editWorldSetting(setting)">
                   <div class="worldview-header">
                     <h4>{{ setting.title }}</h4>
-                    <el-tag v-if="setting.category" :type="getWorldSettingTagType(setting.category)" size="small">
-                      {{ setting.category }}
-                    </el-tag>
+                    <el-tag :type="getWorldSettingTagType(setting.category)">{{ getWorldSettingTagText(setting.category) }}</el-tag>
                   </div>
                   <el-tooltip 
                     v-if="setting.description" 
@@ -277,24 +275,26 @@
             
             <div class="corpus-list">
               <div v-for="corpus in corpusData" :key="corpus.id" class="corpus-item">
-                <div class="corpus-header">
-                  <h4>{{ corpus.title }}</h4>
-                  <el-tag :type="getCorpusType(corpus.type)">{{ corpus.type }}</el-tag>
+                <div class="corpus-content">
+                  <div class="corpus-header">
+                     <h4>{{ corpus.title }}</h4>
+                     <el-tag :type="getCorpusType(corpus.type)">{{ getCorpusTypeText(corpus.type) }}</el-tag>
+                   </div>
+                  <el-tooltip 
+                    :content="corpus.content" 
+                    placement="right"
+                    :disabled="corpus.content.length <= 100"
+                    effect="light"
+                    :show-after="300"
+                  >
+                    <p class="corpus-preview corpus-preview-truncated">
+                      {{ corpus.content.length > 100 ? corpus.content.substring(0, 100) + '...' : corpus.content }}
+                    </p>
+                  </el-tooltip>
                 </div>
-                <el-tooltip 
-                  :content="corpus.content" 
-                  placement="right"
-                  :disabled="corpus.content.length <= 100"
-                  effect="light"
-                  :show-after="300"
-                >
-                  <p class="corpus-preview corpus-preview-truncated">
-                    {{ corpus.content.length > 100 ? corpus.content.substring(0, 100) + '...' : corpus.content }}
-                  </p>
-                </el-tooltip>
                 <div class="corpus-actions">
-                  <el-button size="small" @click="useCorpus(corpus)">使用</el-button>
                   <el-button size="small" @click="editCorpus(corpus)">编辑</el-button>
+                  <el-button size="small" type="danger" @click="deleteCorpus(corpus)">删除</el-button>
                 </div>
               </div>
               
@@ -435,23 +435,7 @@
             </div>
           </div>
           
-          <!-- 流式生成显示区域 -->
-          <div v-if="isStreaming && (streamingType === 'content' || streamingType === 'continue' || streamingType === 'optimize')" class="streaming-content-area">
-            <el-card shadow="never" class="streaming-card">
-              <template #header>
-                <div class="streaming-header">
-                  <span class="streaming-title">🤖 AI正在生成{{ getStreamingTypeText() }}...</span>
-                  <el-button size="small" type="text" @click="stopStreaming" v-if="isStreaming">
-                    <el-icon><Close /></el-icon>
-                    停止
-                  </el-button>
-                </div>
-              </template>
-              <div class="streaming-content">
-                <div class="streaming-text" v-html="formatStreamingContent(streamingContent)"></div>
-              </div>
-            </el-card>
-          </div>
+
 
 
         </el-card>
@@ -836,7 +820,6 @@
                     >
                       <div class="material-header">
                         <span class="material-name">{{ corpus.title }}</span>
-                        <el-tag :type="getCorpusType(corpus.type)" size="small">{{ corpus.type }}</el-tag>
                       </div>
                       <p class="material-desc">{{ corpus.content?.substring(0, 40) || '暂无内容' }}...</p>
                     </div>
@@ -1057,16 +1040,12 @@
             </div>
           </el-col>
         </el-row>
-
-        <!-- 底部操作区 -->
-        <div class="generate-actions">
-          <div class="action-info">
-            <el-icon><InfoFilled /></el-icon>
-            <span>{{ getGenerateInfo() }}</span>
-          </div>
+      </div>
+      
+              <template #footer>
+        <div class="dialog-footer">
           <div class="action-buttons">
             <el-button @click="showChapterGenerateDialog = false">取消</el-button>
-            <el-button @click="previewGenerate" :disabled="!selectedPrompt">预览配置</el-button>
             <el-button 
               type="primary" 
               @click="generateChapterContentWithDialog" 
@@ -1077,9 +1056,9 @@
               {{ isGeneratingContent ? '生成中...' : '开始生成' }}
             </el-button>
           </div>
-                 </div>
-       </div>
-     </el-dialog>
+        </div>
+      </template>
+    </el-dialog>
 
     <!-- 批量生成角色对话框 -->
     <el-dialog v-model="showBatchGenerateCharacterDialog" title="AI批量生成角色" width="900px" @close="showBatchGenerateCharacterDialog = false">
@@ -1715,6 +1694,43 @@
           </el-form-item>
         </el-form>
         
+        <!-- 自定义提示词状态显示 -->
+        <div v-if="batchChapterSelectedPrompt" class="custom-prompt-status">
+          <el-alert
+            :title="`已选择自定义提示词：${batchChapterSelectedPrompt.title}`"
+            type="success"
+            show-icon
+            :closable="false"
+          >
+            <div class="prompt-preview">
+              {{ batchChapterSelectedPrompt.description || '自定义提示词已准备就绪，点击"批量生成"按钮开始使用此提示词生成章节' }}
+            </div>
+          </el-alert>
+          
+          <!-- 提示词内容预览 -->
+          <el-collapse v-model="activePromptCollapse" class="prompt-content-collapse">
+            <el-collapse-item title="查看提示词内容" name="promptContent">
+              <div class="prompt-content-preview">
+                <div class="prompt-content-header">
+                  <span class="content-label">原始提示词内容：</span>
+                </div>
+                <div class="prompt-content-text">
+                  {{ batchChapterSelectedPrompt.content }}
+                </div>
+                
+                <div v-if="batchChapterFinalPrompt" class="final-prompt-section">
+                  <div class="prompt-content-header">
+                    <span class="content-label">填充变量后的最终提示词：</span>
+                  </div>
+                  <div class="prompt-content-text final-prompt">
+                    {{ batchChapterFinalPrompt }}
+                  </div>
+                </div>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
+        </div>
+        
         <!-- 流式生成内容显示 -->
         <div v-if="isStreaming && streamingType === 'batch-chapters'" class="streaming-content-area">
           <el-card shadow="never" class="streaming-card">
@@ -1735,7 +1751,7 @@
         <el-button @click="selectPromptForBatchChapter">选择提示词</el-button>
         <el-button type="primary" @click="generateBatchChapters" :loading="isGeneratingChapters">
           <el-icon><Star /></el-icon>
-          批量生成
+          {{ batchChapterSelectedPrompt ? '使用自定义提示词生成' : '批量生成' }}
         </el-button>
       </template>
     </el-dialog>
@@ -2272,6 +2288,12 @@ const aiBatchChapterForm = ref({
   template: 'general'
 })
 
+// 批量生成章节选中的提示词
+const batchChapterSelectedPrompt = ref(null)
+const batchChapterPromptVariables = ref({})
+const batchChapterFinalPrompt = ref('')
+const activePromptCollapse = ref(['promptContent']) // 默认展开提示词内容
+
 // AI优化表单
 const aiOptimizeForm = ref({
   optimizeType: 'grammar',
@@ -2598,7 +2620,9 @@ const generateChapters = async () => {
 - 章节之间要有逻辑连贯性
 
 已有章节：${chapters.value.length}个
-${chapters.value.map((ch, idx) => `第${idx + 1}章：${ch.title}`).join('\n')}
+
+=== 前文章节信息（重要参考） ===
+${getRecentChaptersDetail()}
 
 请严格按照以下格式返回，每个章节必须包含完整的标题和大纲：
 
@@ -3179,6 +3203,8 @@ const getPromptsByCategory = (category) => {
 
 // 打开提示词选择对话框
 const openPromptDialog = (category) => {
+  console.log('openPromptDialog 被调用，category:', category, 'showAIBatchChapterDialog:', showAIBatchChapterDialog.value)
+  
   selectedPromptCategory.value = category
   showPromptDialog.value = true
   selectedPrompt.value = null
@@ -3197,6 +3223,12 @@ const openPromptDialog = (category) => {
     setTimeout(() => {
       autoFillWorldSettingVariables()
     }, 100) // 延迟执行确保对话框已显示
+  }
+  
+  // 如果是批量章节生成，也需要在这里预处理（虽然还没选择具体提示词）
+  if (category === 'outline' && showAIBatchChapterDialog.value) {
+    console.log('openPromptDialog: 批量章节生成模式，准备预填充基础变量')
+    // 这里不填充具体变量，等用户选择提示词后再填充
   }
 }
 
@@ -3222,6 +3254,15 @@ const selectPrompt = (prompt) => {
   // 如果是世界观生成，自动填充相关信息
   if (selectedPromptCategory.value === 'worldview' && showWorldGenerateDialog.value) {
     autoFillWorldSettingVariables()
+  }
+  
+  // 如果是批量章节生成，自动填充批量章节变量
+  if (selectedPromptCategory.value === 'outline' && showAIBatchChapterDialog.value) {
+    console.log('selectPrompt中检测到批量章节生成，调用autoFillBatchChapterVariables')
+    // 延迟一下确保变量提取完成
+    setTimeout(() => {
+      autoFillBatchChapterVariables()
+    }, 50)
   }
   
   generateFinalPrompt()
@@ -3289,6 +3330,17 @@ const generateFinalPrompt = () => {
   })
   
   finalPrompt.value = result
+  
+  // 如果是批量章节生成，打印调试信息
+  if (selectedPromptCategory.value === 'outline' && showAIBatchChapterDialog.value) {
+    console.log('generateFinalPrompt - 批量章节生成:', {
+      提示词标题: selectedPrompt.value.title,
+      已有章节变量值: promptVariables.value['已有章节'] ? promptVariables.value['已有章节'].substring(0, 300) + '...' : '未设置',
+      最终提示词包含已有章节: result.includes('已有章节'),
+      最终提示词包含章节标题关键词: result.includes('第') && result.includes('章'),
+      所有变量: Object.keys(promptVariables.value)
+    })
+  }
 }
 
 // 监听变量变化
@@ -3459,10 +3511,34 @@ const useSelectedPrompt = () => {
 
   // 判断是否是批量章节生成
   if (selectedPromptCategory.value === 'outline' && showAIBatchChapterDialog.value) {
-    // 批量章节生成提示词
-    generateBatchChaptersWithPrompt(finalPrompt.value)
-    showPromptDialog.value = false
-    ElMessage.success('正在使用自定义提示词批量生成章节...')
+    // 批量章节生成提示词 - 确保包含最新的前5章信息
+    console.log('确认批量章节提示词，重新填充变量确保包含前5章信息')
+    
+    // 重新填充变量确保包含最新的前5章信息
+    autoFillBatchChapterVariables()
+    
+    // 等一下确保变量填充完成
+    setTimeout(() => {
+      // 重新生成最终提示词
+      generateFinalPrompt()
+      
+      // 保存提示词信息
+      batchChapterSelectedPrompt.value = selectedPrompt.value
+      batchChapterPromptVariables.value = { ...promptVariables.value }
+      batchChapterFinalPrompt.value = finalPrompt.value
+      
+      console.log('保存批量章节提示词信息:', {
+        提示词标题: selectedPrompt.value.title,
+        变量数量: Object.keys(promptVariables.value).length,
+        已有章节变量: promptVariables.value['已有章节'] ? promptVariables.value['已有章节'].substring(0, 200) + '...' : '未找到',
+        最终提示词长度: finalPrompt.value.length,
+        最终提示词包含前5章信息: finalPrompt.value.includes('第') && finalPrompt.value.includes('章')
+      })
+      
+      showPromptDialog.value = false
+      ElMessage.success('已选择批量生成章节提示词，请点击"批量生成"按钮开始生成')
+    }, 100)
+    
     return
   }
 
@@ -3662,15 +3738,54 @@ const selectPromptForChapter = (prompt) => {
   })
 }
 
+
+
+// 获取世界观设定标签类型
+const getWorldSettingTagType = (category) => {
+  const typeMap = {
+    'setting': 'primary',
+    'magic': 'danger',
+    'politics': 'warning',
+    'geography': 'success',
+    'history': 'info'
+  }
+  return typeMap[category] || 'info'
+}
+
+// 获取世界观设定标签文本
+const getWorldSettingTagText = (category) => {
+  const textMap = {
+    'setting': '世界设定',
+    'magic': '魔法体系',
+    'politics': '政治势力',
+    'geography': '地理环境',
+    'history': '历史背景'
+  }
+  return textMap[category] || category
+}
+
 // 获取语料库类型样式
 const getCorpusType = (type) => {
   const typeMap = {
-    '对话': 'primary',
-    '描写': 'success',
-    '情节': 'warning',
-    '其他': 'info'
+    'description': 'success',
+    'dialogue': 'primary',
+    'emotion': 'warning',
+    'action': 'danger',
+    'psychology': 'info'
   }
   return typeMap[type] || 'info'
+}
+
+// 获取语料库类型文本
+const getCorpusTypeText = (type) => {
+  const textMap = {
+    'description': '场景描述',
+    'dialogue': '对话模板',
+    'emotion': '情感表达',
+    'action': '动作描写',
+    'psychology': '心理描写'
+  }
+  return textMap[type] || type
 }
 
 // 获取事件重要性样式
@@ -6497,6 +6612,46 @@ const getTemplateDescription = (template) => {
   return templates[template] || '通用模板'
 }
 
+// 获取最近5章的详细信息
+const getRecentChaptersDetail = () => {
+  console.log('getRecentChaptersDetail 被调用，当前章节数量:', chapters.value.length)
+  
+  if (chapters.value.length === 0) {
+    console.log('返回：暂无已有章节')
+    return '暂无已有章节'
+  }
+  
+  // 获取最近5章（或所有章节，如果不足5章）
+  const recentCount = Math.min(5, chapters.value.length)
+  const recentChapters = chapters.value.slice(-recentCount)
+  
+  console.log('最近章节数量:', recentCount, '章节详情:', recentChapters.map(ch => ({
+    title: ch.title,
+    description: ch.description,
+    wordCount: ch.wordCount
+  })))
+  
+  const result = recentChapters.map((ch, idx) => {
+    const chapterIndex = chapters.value.length - recentCount + idx + 1
+    let chapterInfo = `第${chapterIndex}章《${ch.title}》`
+    
+    if (ch.description && ch.description.trim()) {
+      chapterInfo += `\n章节大纲：${ch.description}`
+    } else {
+      chapterInfo += `\n章节大纲：暂无大纲描述`
+    }
+    
+    if (ch.wordCount && ch.wordCount > 0) {
+      chapterInfo += `\n字数：${ch.wordCount}字`
+    }
+    
+    return chapterInfo
+  }).join('\n\n')
+  
+  console.log('最终返回的章节详情:', result)
+  return result
+}
+
 // 构建内容生成提示词
 const buildContentPrompt = (chapter, context, config = null) => {
   const novel = currentNovel.value
@@ -6906,7 +7061,6 @@ const deleteCharacter = (character) => {
 // 世界观管理方法
 const addWorldSetting = () => {
   worldForm.value = {
-    id: null,
     title: '',
     description: '',
     category: 'setting',
@@ -6949,6 +7103,7 @@ const handleWorldSettingAction = (command, setting) => {
 const duplicateWorldSetting = (setting) => {
   const newSetting = {
     ...setting,
+    id: new Date().getTime(),
     title: setting.title + ' (副本)',
     createdAt: new Date(),
     generated: false
@@ -6956,21 +7111,6 @@ const duplicateWorldSetting = (setting) => {
   novelStore.addWorldSetting(newSetting)
   ElMessage.success('设定已复制')
   saveNovelData()
-}
-
-// 获取世界观设定标签类型
-const getWorldSettingTagType = (category) => {
-  const typeMap = {
-    '世界设定': 'primary',
-    '魔法体系': 'danger',
-    '政治势力': 'warning',
-    '地理环境': 'success',
-    '历史背景': 'info',
-    '文化社会': '',
-    '科技水平': 'info',
-    '其他': ''
-  }
-  return typeMap[category] || ''
 }
 
 // 格式化日期
@@ -7002,19 +7142,29 @@ const editCorpus = (corpus) => {
   showCorpusDialog.value = true
 }
 
-const useCorpus = (corpus) => {
-  if (!currentChapter.value) {
-    ElMessage.warning('请先选择一个章节')
-    return
+const deleteCorpus = async (corpus) => {
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除语料"${corpus.title}"吗？`,
+      '删除确认',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    
+    const index = corpusData.value.findIndex(item => item.id === corpus.id)
+    if (index > -1) {
+      corpusData.value.splice(index, 1)
+      ElMessage.success('语料删除成功')
+    }
+  } catch {
+    // 用户取消删除
   }
-  
-  // 将语料内容插入到编辑器中
-  const corpusContent = `<p><strong>[引用语料: ${corpus.title}]</strong></p><p>${corpus.content}</p>`
-  content.value += corpusContent
-  hasUnsavedChanges.value = true
-  
-  ElMessage.success('语料已插入到编辑器')
 }
+
+
 
 // 事件管理方法
 const addEvent = () => {
@@ -7115,14 +7265,13 @@ const saveWorldSetting = () => {
   }
   
   if (worldForm.value.id) {
-    // 编辑现有设定 - 需要通过store更新
-    // 先删除旧的，再添加新的（因为store没有update方法）
-    novelStore.removeWorldSetting(worldForm.value.id)
-    novelStore.addWorldSetting(worldForm.value)
+    // 编辑现有设定
+    novelStore.updateWorldSetting(worldForm.value.id, worldForm.value)
     ElMessage.success('设定信息已更新')
   } else {
     // 新增设定
     const newSetting = {
+      id: new Date().getTime(),
       ...worldForm.value,
       createdAt: new Date()
     }
@@ -7589,6 +7738,11 @@ const resetAIBatchChapterDialog = () => {
     plotRequirement: '',
     template: 'general'
   }
+  // 重置自定义提示词
+  batchChapterSelectedPrompt.value = null
+  batchChapterPromptVariables.value = {}
+  batchChapterFinalPrompt.value = ''
+  activePromptCollapse.value = ['promptContent']
   streamingContent.value = ''
   isStreaming.value = false
 }
@@ -7685,6 +7839,19 @@ ${chapters.value.map((ch, idx) => `第${idx + 1}章：${ch.title} - ${ch.descrip
 const generateBatchChapters = async () => {
   if (!checkApiAndBalance()) return
   
+  console.log('开始批量生成章节')
+  console.log('当前章节列表:', chapters.value.map(ch => ({ title: ch.title, description: ch.description })))
+  
+  // 检查是否有选中的自定义提示词
+  if (batchChapterSelectedPrompt.value && batchChapterFinalPrompt.value) {
+    console.log('使用自定义提示词生成')
+    // 使用自定义提示词生成
+    await generateBatchChaptersWithPrompt(batchChapterFinalPrompt.value)
+    return
+  }
+  
+  console.log('使用默认模板生成')
+  
   isGeneratingChapters.value = true
   isStreaming.value = true
   streamingType.value = 'batch-chapters'
@@ -7726,7 +7893,9 @@ const generateBatchChapters = async () => {
 - 章节之间要有逻辑连贯性
 
 已有章节：${chapters.value.length}个
-${chapters.value.map((ch, idx) => `第${idx + 1}章：${ch.title}`).join('\n')}
+
+=== 前文章节信息（重要参考） ===
+${getRecentChaptersDetail()}
 
 请严格按照以下格式返回${count}个章节：
 
@@ -7742,8 +7911,9 @@ ${chapterExamples.join('\n\n')}
 
 请现在开始生成${count}个章节大纲：`
 
-    console.log('批量生成章节最终提示词:', prompt.substring(0, 500) + '...')
+    console.log('批量生成章节最终提示词:', prompt)
     console.log('请求生成章节数量:', count)
+    console.log('前5章详细信息:', getRecentChaptersDetail())
     
     const aiResponse = await apiService.generateTextStream(prompt, {
       maxTokens: null, // 移除token限制
@@ -7892,12 +8062,17 @@ const selectPromptForSingleChapter = () => {
 }
 
 const selectPromptForBatchChapter = () => {
+  console.log('打开批量章节提示词选择对话框')
+  console.log('当前章节数量:', chapters.value.length)
+  console.log('当前章节列表:', chapters.value.map(ch => ({ title: ch.title, description: ch.description })))
+  
   selectedPromptCategory.value = 'outline'
   showPromptDialog.value = true
   
   // 自动填充批量章节生成的变量
   nextTick(() => {
     if (selectedPrompt.value) {
+      console.log('nextTick中调用autoFillBatchChapterVariables')
       autoFillBatchChapterVariables()
     }
   })
@@ -7905,7 +8080,12 @@ const selectPromptForBatchChapter = () => {
 
 // 自动填充批量章节变量
 const autoFillBatchChapterVariables = () => {
-  if (!selectedPrompt.value) return
+  if (!selectedPrompt.value) {
+    console.log('autoFillBatchChapterVariables: 没有选中的提示词')
+    return
+  }
+  
+  console.log('开始自动填充批量章节变量')
   
   // 自动填充基本信息
   promptVariables.value['小说标题'] = currentNovel.value?.title || '未命名小说'
@@ -7915,22 +8095,23 @@ const autoFillBatchChapterVariables = () => {
   promptVariables.value['情节要求'] = aiBatchChapterForm.value.plotRequirement || '请根据小说主题合理发展'
   promptVariables.value['模板类型'] = getTemplateDescription(aiBatchChapterForm.value.template)
   
-  // 填充已有章节信息
-  if (chapters.value.length > 0) {
-    const existingChapters = chapters.value.map((ch, idx) => 
-      `第${idx + 1}章：${ch.title} - ${ch.description || '暂无描述'}`
-    ).join('\n')
-    promptVariables.value['已有章节'] = existingChapters
-  } else {
-    promptVariables.value['已有章节'] = '暂无已有章节'
-  }
+  // 填充已有章节信息（使用详细的前5章信息）
+  const chaptersDetail = getRecentChaptersDetail()
+  promptVariables.value['已有章节'] = chaptersDetail
+  
+  console.log('批量章节变量填充完成:', {
+    小说标题: promptVariables.value['小说标题'],
+    已有章节: chaptersDetail.substring(0, 200) + '...',
+    变量数量: Object.keys(promptVariables.value).length
+  })
   
   generateFinalPrompt()
 }
 
 // 监听批量章节表单变化，自动更新提示词变量
 watch(() => aiBatchChapterForm.value, () => {
-  if (showAIBatchChapterDialog.value && selectedPrompt.value) {
+  if (showAIBatchChapterDialog.value && selectedPrompt.value && selectedPromptCategory.value === 'outline') {
+    console.log('批量章节表单变化，重新填充提示词变量')
     autoFillBatchChapterVariables()
   }
 }, { deep: true })
@@ -7961,8 +8142,27 @@ const generateBatchChaptersWithPrompt = async (customPrompt) => {
       customPrompt: customPrompt.substring(0, 200) + '...'
     })
     
+    console.log('使用自定义提示词:', {
+      原始提示词长度: customPrompt.length,
+      是否包含已有章节: customPrompt.includes('已有章节'),
+      前5章详细信息: getRecentChaptersDetail().substring(0, 300) + '...'
+    })
+    
+    // 获取前5章详细信息
+    const recentChaptersDetail = getRecentChaptersDetail()
+    
+    // 在自定义提示词前面添加前5章信息，确保AI能看到
+    const promptWithChapters = `=== 前文章节信息（重要参考） ===
+${recentChaptersDetail}
+
+=== 基于以上前文信息，请按照以下要求生成新章节 ===
+${customPrompt}`
+    
+    console.log('添加前5章信息后的提示词长度:', promptWithChapters.length)
+    console.log('确认包含章节信息:', promptWithChapters.includes('第') && promptWithChapters.includes('章'))
+    
     // 在自定义提示词基础上添加格式约束
-    const promptWithFormat = `${customPrompt}
+    const promptWithFormat = `${promptWithChapters}
 
 === 重要格式约束（必须严格遵守） ===
 无论上述提示词如何，你必须严格按照以下格式输出${count}个章节，不得有任何偏差：
@@ -7991,8 +8191,12 @@ const generateBatchChaptersWithPrompt = async (customPrompt) => {
 
 请现在开始生成${count}个章节大纲：`
 
-    console.log('批量生成章节最终提示词:', promptWithFormat.substring(0, 500) + '...')
+    console.log('使用自定义提示词批量生成 - 最终提示词:')
+    console.log('==================== 完整提示词开始 ====================')
+    console.log(promptWithFormat)
+    console.log('==================== 完整提示词结束 ====================')
     console.log('请求生成章节数量:', count)
+    console.log('前5章详细信息:', getRecentChaptersDetail())
     
     const aiResponse = await apiService.generateTextStream(promptWithFormat, {
       maxTokens: null, // 移除token限制
@@ -8866,7 +9070,7 @@ const generateBatchChaptersWithPrompt = async (customPrompt) => {
 }
 
 .characters-list {
-  max-height: calc(100vh - 160px);
+  max-height: calc(100vh - 260px);
   overflow-y: auto;
 }
 
@@ -9141,7 +9345,12 @@ const generateBatchChaptersWithPrompt = async (customPrompt) => {
   transition: all 0.3s;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+}
+
+.corpus-content {
+  flex: 1;
+  text-align: left;
 }
 
 .corpus-item:hover {
@@ -9153,6 +9362,14 @@ const generateBatchChaptersWithPrompt = async (customPrompt) => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 8px;
+}
+
+.worldview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 .corpus-header h4 {
@@ -9450,6 +9667,26 @@ const generateBatchChaptersWithPrompt = async (customPrompt) => {
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
+  gap: 12px;
+}
+
+.dialog-footer:has(.action-info) {
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 0 0 0;
+  border-top: 1px solid #e4e7ed;
+}
+
+.dialog-footer .action-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #606266;
+}
+
+.dialog-footer .action-buttons {
+  display: flex;
   gap: 12px;
 }
 
@@ -10474,5 +10711,74 @@ const generateBatchChaptersWithPrompt = async (customPrompt) => {
   overflow-wrap: break-word;
   display: block;
   margin-top: 4px;
+}
+
+/* 批量生成章节自定义提示词状态样式 */
+.custom-prompt-status {
+  margin: 16px 0;
+}
+
+.custom-prompt-status .el-alert {
+  border-radius: 8px;
+}
+
+.prompt-preview {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #67c23a;
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
+/* 提示词内容预览样式 */
+.prompt-content-collapse {
+  margin-top: 12px;
+  border: 1px solid #e1f5fe;
+  border-radius: 6px;
+  background-color: #f8fdff;
+}
+
+.prompt-content-preview {
+  padding: 0;
+}
+
+.prompt-content-header {
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e8f4fd;
+}
+
+.content-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #409eff;
+}
+
+.prompt-content-text {
+  padding: 12px;
+  background-color: #fafcff;
+  border: 1px solid #e8f4fd;
+  border-radius: 4px;
+  font-family: 'Courier New', Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #606266;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-bottom: 16px;
+}
+
+.final-prompt-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e8f4fd;
+}
+
+.final-prompt {
+  background-color: #f0f9ff;
+  border-color: #b3e5fc;
+  color: #01579b;
 }
 </style>

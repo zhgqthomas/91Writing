@@ -144,8 +144,8 @@
                   <h1>📚 91写作</h1>
                 </div>
                 <div class="app-details">
-                  <p><strong>版本：</strong>v0.5.0</p>
-                  <p><strong>更新时间：</strong>2025年6月24日</p>
+                  <p><strong>版本：</strong>v0.6.0</p>
+                  <p><strong>更新时间：</strong>2025年6月26日</p>
                   <p><strong>开发者：</strong>91写作团队</p>
                   <p><strong>描述：</strong>基于AI技术的智能小说创作辅助工具，提供全方位的写作支持和创作灵感</p>
                 </div>
@@ -218,7 +218,16 @@
                 <h3>📋 更新日志</h3>
                 
                 <div class="log-item current-version">
-                  <h4>v0.5.0 (2025-06-24) - 当前版本</h4>
+                  <h4>v0.6.0 (2025-06-26) - 当前版本</h4>
+                  <ul>
+                    <li>• 短篇小说新增续写功能 - 支持自定义续写方向和字数设置</li>
+                    <li>• 短篇小说选文优化功能重构 - 可以优化完成之后一键插入</li>
+                    <li>• AI正文编辑器修复部分bug问题 - 提升编辑体验稳定性</li>
+                  </ul>
+                </div>
+                
+                <div class="log-item">
+                  <h4>v0.5.0 (2025-06-24)</h4>
                   <ul>
                     <li>• 模型配置预设模型重新梳理</li>
                     <li>• 短篇小说部分API兼容问题bug修复</li>

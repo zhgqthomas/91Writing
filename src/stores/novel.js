@@ -168,8 +168,15 @@ export const useNovelStore = defineStore('novel', () => {
 
   // AI对话功能
   const addChatMessage = (message, isUser = true) => {
+    // 生成唯一ID，避免快速操作时ID重复
+    const generateUniqueId = () => {
+      const timestamp = Date.now()
+      const random = Math.floor(Math.random() * 10000)
+      return timestamp + random
+    }
+    
     aiChatHistory.value.push({
-      id: Date.now(),
+      id: generateUniqueId(),
       content: message,
       isUser,
       timestamp: new Date().toLocaleTimeString()
@@ -201,8 +208,15 @@ export const useNovelStore = defineStore('novel', () => {
   }
 
   const addCorpus = (text) => {
+    // 生成唯一ID，避免快速操作时ID重复
+    const generateUniqueId = () => {
+      const timestamp = Date.now()
+      const random = Math.floor(Math.random() * 10000)
+      return timestamp + random
+    }
+    
     corpus.value.push({
-      id: Date.now(),
+      id: generateUniqueId(),
       content: text,
       createdAt: new Date().toISOString()
     })
@@ -614,14 +628,28 @@ export const useNovelStore = defineStore('novel', () => {
   
   // 世界观设定管理方法
   const addWorldSetting = (setting) => {
+    // 生成唯一ID，避免快速操作时ID重复
+    const generateUniqueId = () => {
+      const timestamp = Date.now()
+      const random = Math.floor(Math.random() * 10000)
+      return timestamp + random
+    }
+    
     worldSettings.value.push({
-      id: Date.now(),
+      id: generateUniqueId(),
       ...setting
     })
   }
   
   const removeWorldSetting = (id) => {
     worldSettings.value = worldSettings.value.filter(setting => setting.id !== id)
+  }
+
+  const updateWorldSetting = (id, updatedSetting) => {
+    const index = worldSettings.value.findIndex(setting => setting.id === id)
+    if (index > -1) {
+      worldSettings.value[index] = { ...worldSettings.value[index], ...updatedSetting }
+    }
   }
 
   // 通用内容生成方法
@@ -715,6 +743,7 @@ export const useNovelStore = defineStore('novel', () => {
     removeCharacter,
     addWorldSetting,
     removeWorldSetting,
+    updateWorldSetting,
     updateStats,
     
     // API相关方法

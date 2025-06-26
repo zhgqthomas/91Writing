@@ -97,12 +97,15 @@
                   <div class="select-row">
                     <div class="select-item">
                       <label>字数</label>
-                      <el-select v-model="storyData.wordCount" placeholder="选择目标字数" size="small">
-                        <el-option label="1000-2000字" value="short" />
-                        <el-option label="3000-5000字" value="medium" />
-                        <el-option label="5000-8000字" value="long" />
-                        <el-option label="8000字以上" value="very_long" />
-                      </el-select>
+                      <el-input-number 
+                        v-model="storyData.wordCount" 
+                        :min="500" 
+                        :max="10000" 
+                        :step="100"
+                        size="small"
+                        placeholder="目标字数"
+                        style="width: 100%"
+                      />
                     </div>
                     <div class="select-item">
                       <!-- 占位，保持布局平衡 -->
@@ -220,7 +223,11 @@
               <el-icon><Refresh /></el-icon>
               重新生成
             </el-button>
-            <el-button size="small" @click="optimizeSelection">
+            <el-button size="small" @click="continueStory" :loading="continuingStory">
+              <el-icon><Plus /></el-icon>
+              {{ continuingStory ? '续写中...' : '续写' }}
+            </el-button>
+            <el-button size="small" @click="showOptimizeDialog">
               <el-icon><EditPen /></el-icon>
               选段优化
             </el-button>
@@ -261,10 +268,7 @@
             <el-tag>字数：{{ getTextWordCount(generatedStory) }}</el-tag>
           </div>
           <div class="footer-actions">
-            <el-button @click="saveStory" :disabled="!generatedStory">
-              <el-icon><DocumentAdd /></el-icon>
-              保存小说
-            </el-button>
+
             <el-button @click="exportStory" :disabled="!generatedStory">
               <el-icon><Download /></el-icon>
               导出文档
@@ -296,6 +300,54 @@
           <el-button type="primary" @click="sendToAssistant" :loading="assistantLoading">
             发送
           </el-button>
+        </div>
+      </div>
+    </el-dialog>
+
+    <!-- 选段优化弹窗 -->
+    <el-dialog v-model="showOptimizeModal" title="选段优化" width="700px" :close-on-click-modal="false">
+      <div class="optimize-dialog">
+        <div class="selected-content">
+          <h4>选中的内容：</h4>
+          <div class="selected-text">{{ selectedTextForOptimize }}</div>
+        </div>
+        
+        <div class="optimize-direction">
+          <h4>优化方向：</h4>
+          <el-input 
+            v-model="optimizeDirection"
+            type="textarea"
+            :rows="3"
+            placeholder="请描述您希望如何优化这段文字，例如：让语言更生动、增加细节描写、调整语气等..."
+          />
+        </div>
+        
+        <div class="optimize-actions">
+          <el-button type="primary" @click="performOptimize" :loading="optimizing">
+            <el-icon><MagicStick /></el-icon>
+            {{ optimizing ? '优化中...' : '开始优化' }}
+          </el-button>
+        </div>
+        
+        <div v-if="optimizedResult || optimizing" class="optimize-result">
+          <h4>{{ optimizing ? '优化中...' : '优化结果：' }}</h4>
+          <div class="optimized-text" ref="optimizedTextRef">
+            <div v-if="optimizing && !optimizedResult" class="optimizing-placeholder">
+              <el-icon class="is-loading"><Loading /></el-icon>
+              正在生成优化内容...
+            </div>
+            <div v-else class="optimized-content">{{ optimizedResult }}</div>
+          </div>
+          <div v-if="!optimizing && optimizedResult" class="result-actions">
+            <el-button type="success" @click="copyOptimizedText">
+              <el-icon><DocumentCopy /></el-icon>
+              复制内容
+            </el-button>
+            <el-button @click="replaceOriginalText">
+              <el-icon><Switch /></el-icon>
+              替换原文
+            </el-button>
+          </div>
         </div>
       </div>
     </el-dialog>
@@ -446,6 +498,97 @@
       </template>
     </el-dialog>
 
+    <!-- 续写弹窗 -->
+    <el-dialog 
+      v-model="showContinueDialog" 
+      title="智能续写" 
+      width="900px"
+      :close-on-click-modal="false"
+      class="continue-dialog"
+    >
+      <div class="continue-container">
+        <!-- 左侧：续写配置 -->
+        <div class="continue-config">
+          <div class="config-section">
+            <h4>续写方向</h4>
+            <el-input
+              v-model="continueDirection"
+              type="textarea"
+              :rows="4"
+              placeholder="请描述您希望故事如何发展，例如：希望主角遇到新的挑战、希望故事走向高潮、希望增加新的角色等..."
+            />
+          </div>
+          
+          <div class="config-section">
+            <h4>续写字数</h4>
+            <el-input-number
+              v-model="continueWordCount"
+              :min="100"
+              :max="10000"
+              :step="100"
+              placeholder="续写字数"
+              style="width: 100%"
+            />
+            <div class="word-count-tips">
+              <span>建议字数：100-10000字</span>
+            </div>
+          </div>
+          
+          <div class="config-section">
+            <h4>续写建议：</h4>
+            <ul class="tips-list">
+              <li>描述您希望故事发展的方向</li>
+              <li>可以指定新的情节转折点</li>
+              <li>可以要求增加新的角色或场景</li>
+              <li>可以指定希望达到的情感效果</li>
+            </ul>
+          </div>
+          
+          <div class="config-actions">
+            <el-button @click="showContinueDialog = false">取消</el-button>
+            <el-button type="primary" @click="performContinue" :loading="continuingStory">
+              {{ continuingStory ? '续写中...' : '开始续写' }}
+            </el-button>
+          </div>
+        </div>
+        
+        <!-- 右侧：续写结果 -->
+        <div class="continue-result">
+          <div class="result-header">
+            <h4>续写结果</h4>
+          </div>
+          
+          <div class="result-content">
+            <div v-if="continueResult" class="continued-content">
+              <div class="continued-text" ref="continueTextRef">
+                {{ continueResult }}
+              </div>
+              <div v-if="continuingStory" class="continuing-indicator">
+                <el-icon class="loading-icon"><Loading /></el-icon>
+                <span>续写中...</span>
+              </div>
+            </div>
+            
+            <div v-else-if="continuingStory" class="continuing-placeholder">
+              <el-icon class="loading-icon"><Loading /></el-icon>
+              <span>续写中...</span>
+            </div>
+            
+            <div v-else class="empty-placeholder">
+              <el-empty description="点击开始续写按钮生成续写内容" />
+            </div>
+          </div>
+          
+          <div v-if="continueResult && !continuingStory" class="result-actions">
+            <el-button type="primary" @click="copyContinueText">
+              <el-icon><DocumentCopy /></el-icon>
+              复制内容
+            </el-button>
+          </div>
+        </div>
+      </div>
+    </el-dialog>
+
     <!-- 提示词选择器对话框 -->
     <el-dialog 
       v-model="showPromptSelector" 
@@ -511,9 +654,9 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, shallowRef, onMounted } from 'vue'
+import { ref, reactive, computed, shallowRef, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { MagicStick, Refresh, EditPen, ChatDotRound, DocumentAdd, Download, Check, Loading, Plus, Setting, List } from '@element-plus/icons-vue'
+import { MagicStick, Refresh, EditPen, ChatDotRound, Download, Check, Loading, Plus, Setting, List, DocumentCopy, Switch } from '@element-plus/icons-vue'
 import { Editor, Toolbar } from '@wangeditor/editor-for-vue'
 import '@wangeditor/editor/dist/css/style.css'
 import { useNovelStore } from '@/stores/novel'
@@ -524,6 +667,7 @@ const router = useRouter()
 
 // 响应式数据
 const generating = ref(false)
+const continuingStory = ref(false)
 const generatedStory = ref('')
 const hasSelection = ref(false)
 const selectedText = ref('')
@@ -533,6 +677,13 @@ const assistantLoading = ref(false)
 const chatHistory = ref([])
 const showAdvancedConfig = ref(false)
 const unifiedPrompt = ref('')
+
+// 续写相关
+const showContinueDialog = ref(false)
+const continueDirection = ref('')
+const continueWordCount = ref(2000)
+const continueResult = ref('')
+const continueTextRef = ref(null)
 
 // 配置管理相关
 const showConfigManager = ref(false)
@@ -545,6 +696,14 @@ const selectedPromptTemplate = ref(null)
 const previewPrompt = ref(null)
 const editablePromptContent = ref('')
 const availablePrompts = ref([])
+
+// 选段优化相关
+const showOptimizeModal = ref(false)
+const selectedTextForOptimize = ref('')
+const optimizeDirection = ref('')
+const optimizing = ref(false)
+const optimizedResult = ref('')
+const optimizedTextRef = ref(null)
 
 // 计算属性 - 短篇小说提示词
 const shortStoryPrompts = computed(() => {
@@ -580,8 +739,6 @@ const editorConfig = {
   }
 }
 
-
-
 // 故事数据
 const storyData = reactive({
   genre: '',
@@ -596,7 +753,7 @@ const storyData = reactive({
   location: '',
   referenceText: '',
   title: '',
-  wordCount: 'medium'
+  wordCount: 3000
 })
 
 // 默认配置数据
@@ -712,18 +869,11 @@ const generateStory = async () => {
 }
 
 const buildStoryPrompt = () => {
-  // 如果使用了提示词模板，直接使用用户编辑的提示词内容
-  if (selectedPromptTemplate.value && unifiedPrompt.value) {
-    console.log('使用提示词模板生成短篇小说')
-    return unifiedPrompt.value
-  }
-  
-  // 否则使用传统的构建方式
   const { protagonist, genre, plotType, emotion, timeFrame, location } = storyData
   
   let prompt = `请根据以下要求创作一篇短篇小说：\n\n`
   
-  // 基础信息
+  // 基础信息 - 始终包含所有参数设置
   prompt += `【基础设定】\n`
   prompt += `- 小说标题：${storyData.title}\n`
   prompt += `- 主角姓名：${protagonist.name}`
@@ -736,7 +886,7 @@ const buildStoryPrompt = () => {
   }
   prompt += `\n`
   
-  // 可选的快速设置
+  // 所有设置参数都传递给AI
   if (genre) {
     const genreInfo = customGenres.value.find(g => g.value === genre)
     prompt += `- 题材风格：${genreInfo?.label || genre}\n`
@@ -767,24 +917,27 @@ const buildStoryPrompt = () => {
     prompt += `- 故事地点：${location}\n`
   }
   
-  // 字数要求
-  const wordCountMap = {
-    short: '1000-2000字',
-    medium: '3000-5000字', 
-    long: '5000-8000字',
-    very_long: '8000字以上'
-  }
+  // 字数要求 - 现在是数字形式
   if (storyData.wordCount) {
-    prompt += `- 目标字数：${wordCountMap[storyData.wordCount]}\n`
+    prompt += `- 目标字数：${storyData.wordCount}字\n`
   }
   
-  prompt += `\n【创作要求】\n${unifiedPrompt.value}\n\n`
+  // 创作要求部分 - 包含提示词模板和自定义要求
+  prompt += `\n【创作要求】\n`
+  
+  // 如果使用了提示词模板，将其作为创作要求的一部分
+  if (selectedPromptTemplate.value && unifiedPrompt.value) {
+    prompt += `${unifiedPrompt.value}\n\n`
+    console.log('已将提示词模板和所有参数设置传递给AI')
+  } else if (unifiedPrompt.value) {
+    prompt += `${unifiedPrompt.value}\n\n`
+  }
   
   if (storyData.referenceText) {
     prompt += `【参考文本】\n${storyData.referenceText}\n\n`
   }
   
-  prompt += `请创作一篇完整的短篇小说，字数控制在3000-5000字，要求情节完整，人物鲜明，语言生动。`
+  prompt += `请创作一篇完整的短篇小说，字数控制在${storyData.wordCount}字左右，要求情节完整，人物鲜明，语言生动。`
   
   // 添加调试日志
   console.log('构建的prompt长度:', prompt.length)
@@ -796,6 +949,132 @@ const buildStoryPrompt = () => {
 const regenerateStory = () => {
   generatedStory.value = ''
   generateStory()
+}
+
+// 续写功能
+const continueStory = async () => {
+  if (continuingStory.value) return
+  
+  // 显示续写弹窗
+  showContinueDialog.value = true
+  continueDirection.value = ''
+  continueResult.value = ''
+}
+
+// 执行续写
+const performContinue = async () => {
+  if (continuingStory.value) return
+  
+  // 获取当前故事内容（去除HTML标签）
+  const currentText = generatedStory.value ? generatedStory.value.replace(/<[^>]*>/g, '') : ''
+  if (!currentText.trim()) {
+    ElMessage.warning('请先生成一些内容再进行续写')
+    return
+  }
+  
+  continuingStory.value = true
+  continueResult.value = ''
+  
+  try {
+    // 构建续写提示词
+    const continuePrompt = buildContinuePrompt(currentText)
+    
+    console.log('=== 续写调试信息 ===')
+    console.log('续写prompt长度:', continuePrompt.length)
+    console.log('当前内容长度:', currentText.length)
+    console.log('续写方向:', continueDirection.value)
+    
+    // 使用流式返回，实时更新续写结果
+    await novelStore.generateContent(continuePrompt, (chunk) => {
+      continueResult.value += chunk
+      // 自动滚动到底部
+      nextTick(() => {
+        if (continueTextRef.value) {
+          continueTextRef.value.scrollTop = continueTextRef.value.scrollHeight
+        }
+      })
+    })
+    
+    ElMessage.success('续写完成！')
+  } catch (error) {
+    console.error('续写失败:', error)
+    ElMessage.error('续写失败：' + error.message)
+  } finally {
+    continuingStory.value = false
+  }
+}
+
+
+
+// 复制续写内容
+const copyContinueText = async () => {
+  try {
+    if (!continueResult.value.trim()) {
+      ElMessage.warning('没有续写内容可以复制')
+      return
+    }
+    
+    await navigator.clipboard.writeText(continueResult.value)
+    ElMessage.success('续写内容已复制到剪贴板')
+  } catch (error) {
+    console.error('复制失败:', error)
+    ElMessage.error('复制失败，请手动复制')
+  }
+}
+
+// 构建续写提示词
+const buildContinuePrompt = (currentText) => {
+  const { protagonist, genre, plotType, emotion, timeFrame, location } = storyData
+  
+  let prompt = `请继续续写以下短篇小说，保持风格和情节的连贯性：\n\n`
+  
+  // 添加原始设置信息，保持一致性
+  prompt += `【原始设定】\n`
+  prompt += `- 小说标题：${storyData.title}\n`
+  prompt += `- 主角姓名：${protagonist.name}`
+  if (protagonist.gender) {
+    prompt += `（${protagonist.gender === 'male' ? '男性' : '女性'}`
+    if (protagonist.age) {
+      prompt += `，${protagonist.age}岁`
+    }
+    prompt += `）`
+  }
+  prompt += `\n`
+  
+  if (genre) {
+    const genreInfo = customGenres.value.find(g => g.value === genre)
+    prompt += `- 题材风格：${genreInfo?.label || genre}\n`
+  }
+  if (emotion) {
+    const emotionInfo = customEmotions.value.find(e => e.value === emotion)
+    let emotionLabel = emotion
+    if (emotionInfo && emotionInfo.label) {
+      emotionLabel = emotionInfo.label.replace(/[\u{1F600}-\u{1F64F}]|[\u{1F300}-\u{1F5FF}]|[\u{1F680}-\u{1F6FF}]|[\u{1F1E0}-\u{1F1FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]/gu, '').trim()
+      if (!emotionLabel) {
+        emotionLabel = emotion
+      }
+    }
+    prompt += `- 情绪氛围：${emotionLabel}\n`
+  }
+  
+  prompt += `\n【当前内容】\n${currentText}\n\n`
+  
+  prompt += `【续写要求】\n`
+  prompt += `请继续续写这个故事，保持以下要求：\n`
+  prompt += `1. 保持与前文的风格和语调一致\n`
+  prompt += `2. 情节发展自然流畅，不要突兀转折\n`
+  prompt += `3. 继续深入刻画人物性格\n`
+  prompt += `4. 续写长度约${continueWordCount.value}字\n`
+  prompt += `5. 推进故事情节向高潮或结局发展\n`
+  
+  // 添加用户指定的续写方向
+  if (continueDirection.value.trim()) {
+    prompt += `6. 按照以下方向发展：${continueDirection.value}\n`
+  }
+  
+  prompt += `\n请直接开始续写，不要重复前面的内容：`
+  
+  return prompt
 }
 
 const resetConfig = () => {
@@ -816,7 +1095,7 @@ const resetConfig = () => {
     storyData.timeFrame = ''
     storyData.location = ''
     storyData.referenceText = ''
-    storyData.wordCount = 'medium'
+    storyData.wordCount = 3000
     storyData.protagonist.name = ''
     storyData.protagonist.gender = 'male'
     storyData.protagonist.age = 25
@@ -847,7 +1126,8 @@ const handleTextSelection = (event) => {
   }
 }
 
-const optimizeSelection = async () => {
+// 显示选段优化弹窗
+const showOptimizeDialog = () => {
   if (!editorRef.value) {
     ElMessage.warning('编辑器未初始化')
     return
@@ -859,16 +1139,104 @@ const optimizeSelection = async () => {
     return
   }
   
-  try {
-    const prompt = `请优化以下文本，使其更加生动有趣：\n\n${selectedText}`
-    const optimized = await novelStore.generateContent(prompt)
-    
-    // 插入优化后的文本
-    editorRef.value.insertText(optimized)
-    ElMessage.success('文本优化完成！')
-  } catch (error) {
-    ElMessage.error('优化失败：' + error.message)
+  selectedTextForOptimize.value = selectedText
+  optimizeDirection.value = ''
+  optimizedResult.value = ''
+  showOptimizeModal.value = true
+}
+
+// 执行优化
+const performOptimize = async () => {
+  if (!selectedTextForOptimize.value) {
+    ElMessage.warning('没有选中的文本')
+    return
   }
+  
+  if (!optimizeDirection.value.trim()) {
+    ElMessage.warning('请填写优化方向')
+    return
+  }
+  
+  optimizing.value = true
+  optimizedResult.value = ''
+  
+  try {
+    let prompt = `请根据以下要求优化这段文字：\n\n`
+    prompt += `【优化方向】\n${optimizeDirection.value}\n\n`
+    prompt += `【原文】\n${selectedTextForOptimize.value}\n\n`
+    prompt += `请直接输出优化后的文字，保持原文的基本意思，但要按照优化方向进行改进。`
+    
+    // 使用流式输出，实时显示优化过程
+    await novelStore.generateContent(prompt, (chunk) => {
+      optimizedResult.value += chunk
+      
+      // 自动滚动到底部，显示最新内容
+      nextTick(() => {
+        if (optimizedTextRef.value) {
+          optimizedTextRef.value.scrollTop = optimizedTextRef.value.scrollHeight
+        }
+      })
+    })
+    
+    ElMessage.success('优化完成！')
+  } catch (error) {
+    console.error('优化失败:', error)
+    ElMessage.error('优化失败：' + error.message)
+  } finally {
+    optimizing.value = false
+  }
+}
+
+// 复制优化后的文本
+const copyOptimizedText = async () => {
+  if (!optimizedResult.value) {
+    ElMessage.warning('没有优化结果可复制')
+    return
+  }
+  
+  try {
+    await navigator.clipboard.writeText(optimizedResult.value)
+    ElMessage.success('已复制到剪贴板')
+  } catch (error) {
+    // 如果clipboard API不可用，使用传统方法
+    const textArea = document.createElement('textarea')
+    textArea.value = optimizedResult.value
+    document.body.appendChild(textArea)
+    textArea.select()
+    document.execCommand('copy')
+    document.body.removeChild(textArea)
+    ElMessage.success('已复制到剪贴板')
+  }
+}
+
+// 替换原文
+const replaceOriginalText = () => {
+  if (!optimizedResult.value || !editorRef.value) {
+    ElMessage.warning('无法替换原文')
+    return
+  }
+  
+  try {
+    // 获取当前编辑器内容
+    const currentContent = generatedStory.value || ''
+    
+    // 替换选中的文本
+    const newContent = currentContent.replace(selectedTextForOptimize.value, optimizedResult.value)
+    generatedStory.value = newContent
+    
+    // 关闭弹窗
+    showOptimizeModal.value = false
+    
+    ElMessage.success('已替换原文')
+  } catch (error) {
+    console.error('替换失败:', error)
+    ElMessage.error('替换失败：' + error.message)
+  }
+}
+
+const optimizeSelection = async () => {
+  // 保留原有方法以防兼容性问题
+  showOptimizeDialog()
 }
 
 const sendToAssistant = async () => {
@@ -891,10 +1259,7 @@ const sendToAssistant = async () => {
   }
 }
 
-const saveStory = () => {
-  // 实现保存功能
-  ElMessage.success('小说已保存！')
-}
+
 
 const exportStory = () => {
   // 实现导出功能
@@ -908,8 +1273,6 @@ const exportStory = () => {
   link.click()
   URL.revokeObjectURL(url)
 }
-
-
 
 // 获取纯文本字数统计
 const getTextWordCount = (html) => {
@@ -1072,13 +1435,8 @@ const fillPromptVariables = (promptContent) => {
 
 // 辅助方法 - 获取选项文本
 const getWordCountText = (value) => {
-  const wordCountMap = {
-    short: '1000-2000字',
-    medium: '3000-5000字', 
-    long: '5000-8000字',
-    very_long: '8000字以上'
-  }
-  return wordCountMap[value] || '3000-5000字'
+  // 现在wordCount是数字形式
+  return `${value}字`
 }
 
 const getGenreText = (value) => {
@@ -1689,4 +2047,265 @@ onMounted(() => {
 .empty-prompts .el-empty {
   padding: 20px;
 }
-</style> 
+
+/* 续写对话框样式 */
+.continue-direction {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.direction-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.direction-input label {
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.direction-tips {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.direction-tips h4 {
+  margin: 0 0 12px 0;
+  color: #495057;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.direction-tips ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.direction-tips li {
+  color: #6c757d;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+
+.direction-tips li:last-child {
+  margin-bottom: 0;
+}
+
+/* 选段优化弹窗样式 */
+.optimize-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.selected-content h4,
+.optimize-direction h4,
+.optimize-result h4 {
+  margin: 0 0 8px 0;
+  color: #2c3e50;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.selected-text {
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #495057;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.optimize-actions {
+  text-align: center;
+}
+
+.optimized-text {
+  background: #f0f9ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #1e40af;
+  max-height: 200px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.optimizing-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+  font-style: italic;
+}
+
+.optimizing-placeholder .el-icon {
+  font-size: 16px;
+}
+
+.optimized-content {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.result-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 12px;
+}
+
+/* 续写弹窗样式 */
+.continue-dialog .el-dialog__body {
+  padding: 20px;
+}
+
+.continue-container {
+  display: flex;
+  gap: 20px;
+  height: 500px;
+}
+
+.continue-config {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.config-section h4 {
+  margin: 0 0 8px 0;
+  color: #2c3e50;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.tips-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #6c757d;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.tips-list li {
+  margin-bottom: 4px;
+}
+
+.config-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.continue-result {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #e5e7eb;
+  padding-left: 20px;
+}
+
+.result-header h4 {
+  margin: 0 0 12px 0;
+  color: #2c3e50;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.result-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.continuing-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6b7280;
+  font-style: italic;
+  padding: 20px;
+  justify-content: center;
+}
+
+.continuing-placeholder .loading-icon {
+  font-size: 16px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.continued-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.continued-text {
+  background: #f0f9ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #1e40af;
+  flex: 1;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.continuing-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  margin-top: 8px;
+  background: #e3f2fd;
+  border-radius: 4px;
+  font-size: 12px;
+  color: #1976d2;
+}
+
+.continuing-indicator .loading-icon {
+  margin-right: 4px;
+  animation: spin 1s linear infinite;
+}
+
+.word-count-tips {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+  text-align: center;
+}
+
+.empty-placeholder {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.empty-placeholder .el-empty {
+  padding: 20px;
+}
+</style>
